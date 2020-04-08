@@ -81,7 +81,7 @@ class _Item():
     def f_add_review_id(self, review_obj, review_id):
         self.m_review_id_list.append(review_id)
 
-        self.m_total_doc_len += review_obj.m_word_num
+        self.m_total_doc_len += review_obj.m_informative_word_num
         self.m_word_tf_map = Counter(review_obj.m_word_tf_map)+self.m_word_tf_map
         # word_review_list = []
         # for word in word_ids:

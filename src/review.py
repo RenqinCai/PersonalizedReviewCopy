@@ -9,21 +9,15 @@ class _Review():
         self.m_user_id = -1
         self.m_item_id = -1
         self.m_word_tf_map = {}
-        self.m_word_num = 0
+        self.m_informative_word_num = 0
         
-    def f_set_review(self, review_id, review_words, stop_words):
+    def f_set_review(self, review_id, review_words, word_tf_map, informative_word_num):
         self.m_review_id = review_id
         self.m_review_words = review_words
 
-        word_tf_map = Counter(review_words)
+        self.m_word_tf_map = word_tf_map
 
-        for word in word_tf_map:
-            if word in stop_words:
-                continue
-
-            self.m_word_tf_map[word] = word_tf_map[word]
-            
-        self.m_word_num = sum(self.m_word_tf_map.values())
+        self.m_informative_word_num = informative_word_num
 
     def f_set_user_item(self, user_id, item_id):
         self.m_user_id = user_id

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from nltk.translate.bleu_score import sentence_bleu
 import os
+from metric import get_bleu
 
 class INFER(object):
     def __init__(self, vocab_obj, args, device):
@@ -42,6 +43,8 @@ class INFER(object):
         
         batch_index = 0
 
+        bleu_score_list = []
+
         for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
 
             if batch_index > 0:
@@ -57,20 +60,37 @@ class INFER(object):
             ARe_batch = ARe_batch.to(self.m_device)
 
             logp, z_mean_prior, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
-            print(" "*10, "*"*10, " "*10)
+            print("*"*10, "encode -->  decode <--", "*"*10)
             
             print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
             # mean = mean.unsqueeze(0)
-            print("size", z_mean.size(), s_mean.size())
+            # print("size", z_mean.size(), s_mean.size())
             mean = torch.cat([z_mean, s_mean], dim=1)
             max_seq_len = max(length_batch)
             samples, z = self.f_decode_text(mean, max_seq_len)
 
             # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
+            bleu_score_batch = self.f_eval(samples.cpu(), target_batch.cpu(), length_batch.cpu())
+            print("batch bleu score", bleu_score_batch)
+
+            bleu_score_list.append(bleu_score_batch)
+
             print("<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+
+        mean_bleu_score = np.mean(bleu_score_list)
+        print("bleu score", mean_bleu_score)
             
+    def f_eval(self, pred, target, length):
+
+        pred = pred.tolist()
+        target = target.tolist()
+        target = [target_i[:length[index]]for index, target_i in enumerate(target)]
+
+        bleu_score = get_bleu(pred, target)
+        return bleu_score
+
     def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:
             assert "z is none"

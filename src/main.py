@@ -28,6 +28,7 @@ def main(args):
     # train_data, valid_data = data()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("device", device)
 
     ### add count parameters
     
@@ -39,14 +40,14 @@ def main(args):
     trainer = TRAINER(vocab_obj, args, device)
     trainer.f_train(train_data, valid_data, network, optimizer)
 
-    print("*"*10, "inference")
+    print("="*10, "inference", "="*10)
     
-    # infer = INFER(vocab_obj, args, device)
+    infer = INFER(vocab_obj, args, device)
 
-    # infer.f_init_infer(network)
+    infer.f_init_infer(network)
 
-    # infer.f_inference(valid_data)
-    # ### get the batch
+    infer.f_inference(valid_data)
+    ### get the batch
 
 
     ### get the loss
@@ -82,7 +83,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-bi', '--bidirectional', action='store_true')
     parser.add_argument('-rnn', '--rnn_type', type=str, default='GRU')
-    parser.add_argument('-ep', '--epochs', type=int, default=20)
+    parser.add_argument('-ep', '--epochs', type=int, default=10)
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
     parser.add_argument('-m', '--momentum', type=float, default=0.00)

@@ -18,6 +18,8 @@ from user import _User
 import pickle
 import string
 import datetime
+from collections import Counter 
+
 
 class _Data():
     def __init__(self):
@@ -25,7 +27,7 @@ class _Data():
 
     def _create_data(self, args):
         self.m_min_occ = args.min_occ
-        self.m_max_line = 1e5
+        self.m_max_line = 1e8
 
         self.m_data_dir = args.data_dir
         self.m_data_name = args.data_name
@@ -84,9 +86,23 @@ class _Data():
             words = tokenizer.tokenize(review)
 
             word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in words]
+
+            word_tf_map = Counter(word_ids)
+            new_word_tf_map = {}
+            for word in word_tf_map:
+                if word in non_informative_words:
+                    continue
+
+                new_word_tf_map[word] = word_tf_map[word]
+
+            informative_word_num = sum(new_word_tf_map.values())
+
+            if informative_word_num < 5:
+                continue
+
             review_id = len(review_corpus['train'])
             review_obj = _Review()
-            review_obj.f_set_review(review_id, word_ids, non_informative_words)
+            review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
 
             # print_index += 1
 
@@ -118,6 +134,7 @@ class _Data():
 
         e_time = datetime.datetime.now()
         print("load training duration", e_time-ss_time)
+        print("load train review num", len(review_corpus["train"]))
 
         s_time = datetime.datetime.now()
 
@@ -139,33 +156,11 @@ class _Data():
                 
             item_obj.f_get_item_lm()
 
-            # if print_index < 10:
-            #     print(item_id, " avg item word distribution", len(item_obj.m_review_id_list))
-            #     # print("avg item word distribution", item_obj.m_avg_review_words)
-            #     for word in item_obj.m_avg_review_words:
-            #         word_str = vocab_obj.m_i2w[word]
-            #         word_prob = item_obj.m_avg_review_words[word]
-            #         print(word_str, word_prob, end=" ")
-
-            # print_index += 1
-
-            # e_time = datetime.datetime.now()
-            # # print("item duration", e_time-s_time)
-
             for review_id in item_obj.m_review_id_list:
-
-                # s_time = datetime.datetime.now()
 
                 review_obj = review_corpus["train"][review_id]
 
                 item_obj.f_get_RRe(review_obj)
-
-                # if print_review_index < 10:   
-                #     print("avg review word distribution", review_obj.m_res_review_words)
-                # print_review_index += 1
-
-                # e_time = datetime.datetime.now()
-                # print("review duration", e_time-s_time)
 
             if item_id not in save_item_corpus:
                 save_item_corpus[item_id] = item_obj.m_avg_review_words
@@ -183,10 +178,22 @@ class _Data():
 
             word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in words]
 
-            review_id = len(review_corpus["valid"])
+            word_tf_map = Counter(word_ids)
+            new_word_tf_map = {}
+            for word in word_tf_map:
+                if word in non_informative_words:
+                    continue
 
+                new_word_tf_map[word] = word_tf_map[word]
+
+            informative_word_num = sum(new_word_tf_map.values())
+
+            if informative_word_num < 5:
+                continue
+
+            review_id = len(review_corpus["valid"])
             review_obj = _Review()
-            review_obj.f_set_review(review_id, word_ids, non_informative_words)
+            review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
 
             review_corpus["valid"][review_id] = review_obj
             
@@ -196,6 +203,8 @@ class _Data():
             item_obj = item_corpus[item_id]
             # print(len(item_corpus))
             item_obj.f_get_RRe(review_obj)
+
+        print("load validate review num", len(review_corpus["valid"]))
 
         save_data = {"item": save_item_corpus, "review": review_corpus, "user":user_num}
 
@@ -229,6 +238,14 @@ class _Data():
         line_i = 0
         for review in train_reviews:
             words = tokenizer.tokenize(review)
+            # word_num_review = 0
+            # for w in words:
+            #     if w in stopwords.words():
+            #         continue
+            #     word_num_review += 1
+            # if word_num_review < 5:
+            #     continue
+
             w2c.update(words)
 
             if line_i > max_line:
@@ -243,13 +260,6 @@ class _Data():
                 i2w[len(w2i)] = w
                 w2i[w] = len(w2i)
 
-        # print("vocabulary of %i keys created"%len(w2i))
-
-        # vocab = dict(w2i=w2i, i2w=i2w)
-        # with io.open(os.path.join(self.m_data_dir, self.m_vocab_file), 'wb') as vocab_file:
-        #     data = json.dumps(vocab, ensure_ascii=False)
-        #     vocab_file.write(data.encode('utf8', 'replace'))
-        
         print("len(i2w)", len(i2w))
         vocab_obj.f_set_vocab(w2i, i2w)
 
@@ -376,22 +386,28 @@ class Amazon(Dataset):
             self.m_target_batch_list[batch_index].append(target_review)
 
             RRe_review = review_obj.m_res_review_words
-            RRe_i_iter = np.zeros(self.m_vocab_size)
-            RRe_index = list(RRe_review.keys())
-            RRe_val = list(RRe_review.values())
-            RRe_i_iter[RRe_index] = RRe_val
-            self.m_RRe_batch_list[batch_index].append(RRe_i_iter)
+            self.m_RRe_batch_list[batch_index].append(RRe_review)
+
+            # RRe_i_iter = np.zeros(self.m_vocab_size)
+            # RRe_index = list(RRe_review.keys())
+            # RRe_val = list(RRe_review.values())
+            # RRe_i_iter[RRe_index] = RRe_val
+            # self.m_RRe_batch_list[batch_index].append(RRe_i_iter)
 
             item_id = review_obj.m_item_id
             ARe_item = item_corpus[item_id]
-            ARe_i_iter = np.zeros(self.m_vocab_size)
-            ARe_index = list(ARe_item.keys())
-            ARe_val = list(ARe_item.values())
-            ARe_i_iter[ARe_index] = ARe_val
-            self.m_ARe_batch_list[batch_index].append(ARe_i_iter)
+            self.m_ARe_batch_list[batch_index].append(ARe_item)
+
+            # ARe_i_iter = np.zeros(self.m_vocab_size)
+            # ARe_index = list(ARe_item.keys())
+            # ARe_val = list(ARe_item.values())
+            # ARe_i_iter[ARe_index] = ARe_val
+            # self.m_ARe_batch_list[batch_index].append(ARe_i_iter)
 
             user_id = int(review_obj.m_user_id)
             self.m_user_batch_list[batch_index].append(user_id)
+
+        print("loaded data")
 
     def __iter__(self):
         print("shuffling")
@@ -429,17 +445,17 @@ class Amazon(Dataset):
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
 
-                # RRe_i_iter = np.zeros(self.m_vocab_size)
-                # RRe_index = list(RRe_batch[sent_i].keys())
-                # RRe_val = list(RRe_batch[sent_i].values())
-                # RRe_i_iter[RRe_index] = RRe_val
+                RRe_i_iter = np.zeros(self.m_vocab_size)
+                RRe_index = list(RRe_batch[sent_i].keys())
+                RRe_val = list(RRe_batch[sent_i].values())
+                RRe_i_iter[RRe_index] = RRe_val
                 # print(RRe_index, RRe_val)
                 # print(RRe_i_iter[RRe_index])
 
-                # ARe_i_iter = np.zeros(self.m_vocab_size)
-                # ARe_index = list(ARe_batch[sent_i].keys())
-                # ARe_val = list(ARe_batch[sent_i].values())
-                # ARe_i_iter[ARe_index] = ARe_val
+                ARe_i_iter = np.zeros(self.m_vocab_size)
+                ARe_index = list(ARe_batch[sent_i].keys())
+                ARe_val = list(ARe_batch[sent_i].values())
+                ARe_i_iter[ARe_index] = ARe_val
 
                 input_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
                 target_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
@@ -448,18 +464,15 @@ class Amazon(Dataset):
 
                 target_batch_iter.append(target_i_iter)
 
-                # ARe_batch_iter.append(ARe_i_iter)
-                # RRe_batch_iter.append(RRe_i_iter)
+                ARe_batch_iter.append(ARe_i_iter)
+                RRe_batch_iter.append(RRe_i_iter)
 
                 # e_time = datetime.datetime.now()
                 # print("yield batch data duration", e_time-ss_time)
 
             user_batch_iter = user_batch
-            RRe_batch_iter = RRe_batch
-            ARe_batch_iter = ARe_batch
-
-            # RRe_batch_iter = np.array(RRe_batch_iter)
-            # ARe_batch_iter = np.array(ARe_batch_iter)
+            # RRe_batch_iter = RRe_batch
+            # ARe_batch_iter = ARe_batch
 
             # print(sum(RRe_batch_iter[0]))
             # ts_time = datetime.datetime.now()
@@ -469,6 +482,8 @@ class Amazon(Dataset):
 
             target_batch_iter_tensor = torch.from_numpy(np.array(target_batch_iter)).long()
             
+            # RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
+            # print(np.array(RRe_batch_iter).dtype)
             RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
             ARe_batch_iter_tensor = torch.from_numpy(np.array(ARe_batch_iter))
 

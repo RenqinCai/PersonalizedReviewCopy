@@ -8,10 +8,10 @@ import datetime
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-
 from metric import Reconstruction_loss, KL_loss, RRe_loss, ARe_loss, KL_loss_z
 from model import REVIEWDI
 from inference import INFER
+import random
 
 class TRAINER(object):
 
@@ -45,8 +45,10 @@ class TRAINER(object):
         self.m_RRe_loss_fn = RRe_loss(self.m_device)
         self.m_ARe_loss_fn = ARe_loss(self.m_device)
 
-        self.m_step = 0
+        self.m_train_step = 0
+        self.m_valid_step = 0
         self.m_model_path = args.model_path
+        self.m_model_name = "REVIEWDI"
 
     # def saveModel(self, epoch, loss, recall, mrr):
     #     checkpoint = {
@@ -71,7 +73,10 @@ class TRAINER(object):
             'optimizer': optimizer
         }
 
-        model_name = os.path.join(self.m_model_path, "reviewdi_model_best.pt")
+        now_time = datetime.datetime.now()
+        time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
+
+        model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
         torch.save(checkpoint, model_name)
 
     def f_train(self, train_data, eval_data, network, optimizer):
@@ -79,7 +84,6 @@ class TRAINER(object):
         last_train_loss = 0
         last_eval_loss = 0
 
-        
         for epoch in range(self.m_epochs):
             print("+"*20)
 
@@ -100,6 +104,7 @@ class TRAINER(object):
 
             self.f_save_model(epoch, network, optimizer)
             # self.m_infer.f_inference_epoch()
+            print("-"*10, "validation dataset", "-"*10)
             self.f_train_epoch(eval_data, network, optimizer, "val")
 
             if last_eval_loss == 0:
@@ -130,13 +135,16 @@ class TRAINER(object):
 
             if train_val_flag == "train":
                 network.train()
+                self.m_train_step += 1
             elif train_val_flag == "val":
                 network.eval()
+                # self.m_valid_step += 1
+                eval_flag = random.randint(1,101)
+                if eval_flag != 10:
+                    continue
             else:
                 raise NotImplementedError
 
-            self.m_step += 1
-            
             input_batch = input_batch.to(self.m_device)
             user_batch = user_batch.to(self.m_device)
             length_batch = length_batch.to(self.m_device)
@@ -150,9 +158,9 @@ class TRAINER(object):
             NLL_loss = self.m_Recon_loss_fn(logp, target_batch, length_batch)
 
             ### KL loss
-            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean_prior, z_mean, z_logv, self.m_step, self.m_k, self.m_x0, self.m_anneal_func)
+            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean_prior, z_mean, z_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
 
-            KL_loss_s, KL_weight_s = self.m_KL_loss_s_fn(s_mean, s_logv, self.m_step, self.m_k, self.m_x0, self.m_anneal_func)
+            KL_loss_s, KL_weight_s = self.m_KL_loss_s_fn(s_mean, s_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
 
             ### RRe loss
             RRe_loss = self.m_RRe_loss_fn(RRe_pred, RRe_batch)
