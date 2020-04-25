@@ -4,26 +4,25 @@ import time
 import torch
 import argparse
 import numpy as np
-import datetime
+import datetime 
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-from metric import Reconstruction_loss, KL_loss, RRe_loss, ARe_loss, KL_loss_z
+import random
+
+from metric import Reconstruction_loss, KL_loss_standard, KL_loss_customize
 from model import REVIEWDI
 from inference import INFER
-import random
 
 class TRAINER(object):
 
-    def __init__(self, vocab, args, device):
+    def __init__(self, vocab_obj, args, device):
         super().__init__()
 
-        self.m_pad_idx = vocab.pad_idx
+        self.m_pad_idx = vocab_obj.pad_idx
 
         self.m_Recon_loss_fn = None
         self.m_KL_loss_fn = None
-        self.m_RRe_loss_fn = None
-        self.m_ARe_loss_fn = None
 
         self.m_save_mode = True
         self.m_mean_train_loss = 0
@@ -38,37 +37,32 @@ class TRAINER(object):
         self.m_k = args.k
 
         self.m_anneal_func = args.anneal_func
+        print("args.anneal_func", args.anneal_func)
         
-        self.m_Recon_loss_fn = Reconstruction_loss(self.m_device, ignore_index=self.m_pad_idx)
-        self.m_KL_loss_z_fn = KL_loss_z(self.m_device)
-        self.m_KL_loss_s_fn = KL_loss(self.m_device)
-        self.m_RRe_loss_fn = RRe_loss(self.m_device)
-        self.m_ARe_loss_fn = ARe_loss(self.m_device)
-
+        self.m_Recon_loss_fn = Reconstruction_loss(ignore_index=self.m_pad_idx, device=self.m_device)
+        self.m_KL_loss_z_fn = KL_loss_standard(self.m_device, self.m_anneal_func)
+    
         self.m_train_step = 0
         self.m_valid_step = 0
         self.m_model_path = args.model_path
-        self.m_model_name = "REVIEWDI"
+        self.m_model_name = "VAE"
 
         self.m_train_iteration = 0
         self.m_valid_iteration = 0
 
-    # def saveModel(self, epoch, loss, recall, mrr):
-    #     checkpoint = {
-    #         'model': self.model.state_dict(),
-    #         'args': self.args,
-    #         'epoch': epoch,
-    #         'optim': self.optim,
-    #         'loss': loss,
-    #         'recall': recall,
-    #         'mrr': mrr
-    #     }
-        
-    #     # checkpoint_dir = "../log/"+self.args.model_name+"/"+self.args.checkpoint_dir
-    #     # model_name = os.path.join(self.args.checkpoint_dir, "model_{0:05d}.pt".format(epoch))
-    #     model_name = os.path.join(self.args.checkpoint_dir, "model_best.pt")
-    #     # model_name = os.path.join(self.args.checkpoint_dir, "model_{0:05d}.pt".format(epoch))
-    #     torch.save(checkpoint, model_name)
+        self.m_KL_weight = 0.0
+        # self.m_KL_weight_list = []
+
+        self.m_grads = {}
+        self.m_model_file = args.model_file
+
+    def f_save_grad(self, name):
+        def hook(grad):
+            # if name not in self.m_grads:
+            self.m_grads[name] = grad
+            # else:
+            #     self.m_grads[name] += grad
+        return hook
 
     def f_save_model(self, epoch, network, optimizer):
         checkpoint = {'model':network.state_dict(),
@@ -76,11 +70,11 @@ class TRAINER(object):
             'optimizer': optimizer
         }
 
-        now_time = datetime.datetime.now()
-        time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
+        # now_time = datetime.datetime.now()
+        # time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
 
-        model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
-        torch.save(checkpoint, model_name)
+        # model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
+        torch.save(checkpoint, self.m_model_file)
 
     def f_train(self, train_data, eval_data, network, optimizer, logger_obj):
 
@@ -92,13 +86,12 @@ class TRAINER(object):
 
         for epoch in range(self.m_epochs):
             print("+"*20)
-
+            
             s_time = datetime.datetime.now()
             self.f_train_epoch(train_data, network, optimizer, logger_obj, "train")
             e_time = datetime.datetime.now()
-
-            print("epoch duration", e_time-s_time)
-
+            print("epoch train duration", e_time-s_time)
+            
             if last_train_loss == 0:
                 last_train_loss = self.m_mean_train_loss
 
@@ -110,15 +103,16 @@ class TRAINER(object):
 
             self.f_save_model(epoch, network, optimizer)
             # self.m_infer.f_inference_epoch()
-            print("-"*10, "validation dataset", "-"*10)
+            s_time = datetime.datetime.now()
             self.f_train_epoch(eval_data, network, optimizer, logger_obj, "val")
+            e_time = datetime.datetime.now()
+            print("epoch validate duration", e_time-s_time)
 
             if last_eval_loss == 0:
                 last_eval_loss = self.m_mean_val_loss
             elif last_eval_loss < self.m_mean_val_loss:
                 print("!"*10, "overfitting validation loss increase", "!"*10, "last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_val_loss)
             else:
-                
                 print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_val_loss)
                 last_eval_loss = self.m_mean_val_loss
 
@@ -133,94 +127,88 @@ class TRAINER(object):
         RRe_loss_list = []
         ARe_loss_list = []
 
-        # (NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+RRe_loss+ARe_loss)
-
         batch_size = self.m_batch_size
-
-        for input_batch, user_batch, target_batch, ARe_batch, RRe_batch, length_batch in data:
-
+        iteration = 0
+        for input_batch, target_batch, length_batch in data:
+            
             if train_val_flag == "train":
                 network.train()
                 self.m_train_step += 1
             elif train_val_flag == "val":
                 network.eval()
-                # self.m_valid_step += 1
-                eval_flag = random.randint(1,101)
-                if eval_flag != 10:
+                eval_flag = random.randint(1,5)
+                if eval_flag != 1:
                     continue
             else:
                 raise NotImplementedError
 
             input_batch = input_batch.to(self.m_device)
-            user_batch = user_batch.to(self.m_device)
             length_batch = length_batch.to(self.m_device)
             target_batch = target_batch.to(self.m_device)
-            RRe_batch = RRe_batch.to(self.m_device)
-            ARe_batch = ARe_batch.to(self.m_device)
+        
+            logp, z_mean, z_logv, z, encoder_last_hidden, encoder_outputs = network(input_batch, length_batch)
 
-            logp, z_mean_prior, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = network(input_batch, user_batch, length_batch)
+            # z_mean.register_hook(self.f_save_grad('z_mean'))
+            # z.register_hook(self.f_save_grad('z'))
 
             ### NLL loss
             NLL_loss = self.m_Recon_loss_fn(logp, target_batch, length_batch)
+            # NLL_loss = NLL_loss/torch.sum(length_batch)
             NLL_loss = NLL_loss/batch_size
 
-            ### KL loss
-            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean_prior, z_mean, z_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
+            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean, z_logv, self.m_train_step)
+
+            # KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean, z_logv, self.m_train_step, self.m_k, self.m_x0, anneal_func=self.m_anneal_func)
             KL_loss_z = KL_loss_z/batch_size
+            # KL_loss_z = KL_loss_z/torch.sum(length_batch)
 
-            KL_loss_s, KL_weight_s = self.m_KL_loss_s_fn(s_mean, s_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
-            KL_loss_s = KL_loss_s/batch_size
+            # self.m_KL_weight = 0
+            self.m_KL_weight = KL_weight_z
+            loss = NLL_loss+self.m_KL_weight*KL_loss_z
+            # loss = (NLL_loss)
 
-            ### RRe loss
-            RRe_loss = self.m_RRe_loss_fn(RRe_pred, RRe_batch)
-            
-            ### ARe loss
-            ARe_loss = self.m_ARe_loss_fn(ARe_pred, ARe_batch)
-            
-            loss = (NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+RRe_loss+ARe_loss)
-
-            # print("reconstruction loss:%.4f"%NLL_loss.item(), "\t KL loss z:%.4f"%KL_loss_z.item(), "\t KL loss s%.4f"%KL_loss_s.item(), "\tRRe loss:%.4f"%RRe_loss.item(), "\t ARe loss:%.4f"%ARe_loss.item())
-            
             if train_val_flag == "train":
-                logger_obj.f_add_scalar2tensorboard("train/KL_loss_z", KL_loss_z.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_weight_z", KL_weight_z, self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_loss_s", KL_loss_s.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_weight_s", KL_weight_s, self.m_train_iteration)
+                logger_obj.f_add_scalar2tensorboard("train/KL_loss", KL_loss_z.item(), self.m_train_iteration)
+                logger_obj.f_add_scalar2tensorboard("train/KL_weight", KL_weight_z, self.m_train_iteration)
                 logger_obj.f_add_scalar2tensorboard("train/loss", loss.item(), self.m_train_iteration)
                 logger_obj.f_add_scalar2tensorboard("train/NLL_loss", NLL_loss.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/ARe_loss", ARe_loss.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/RRe_loss", RRe_loss.item(), self.m_train_iteration)
             else:
                 logger_obj.f_add_scalar2tensorboard("valid/KL_loss", KL_loss_z.item(), self.m_valid_iteration)
                 logger_obj.f_add_scalar2tensorboard("valid/KL_weight", KL_weight_z, self.m_valid_iteration)
                 logger_obj.f_add_scalar2tensorboard("valid/loss", loss.item(), self.m_valid_iteration)
                 logger_obj.f_add_scalar2tensorboard("valid/NLL_loss", NLL_loss.item(), self.m_valid_iteration)
-                logger_obj.f_add_scalar2tensorboard("valid/ARe_loss", ARe_loss.item(), self.m_valid_iteration)
-                logger_obj.f_add_scalar2tensorboard("valid/RRe_loss", RRe_loss.item(), self.m_valid_iteration)
-
+            
             if train_val_flag == "train":
                 optimizer.zero_grad()
                 loss.backward()
+
                 optimizer.step()
                 train_loss_list.append(loss.item())
+
+                # _ = torch.nn.utils.clip_grad_norm_(network.parameters(), 5.0)
                 self.m_train_iteration += 1
-        
+
+                if self.m_train_iteration %4000 == 0:
+                    print(self.m_train_iteration, " training batch")
+                    print("--"*10)
+
+            iteration += 1 
+            if iteration % 200 == 0:
+                print("%04d, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
+                    %(iteration, loss.item(), NLL_loss.item(), KL_loss_z.item(), KL_weight_z))
+                # if self.m_train_iteration > 0:
+                #     exit()
+
             elif train_val_flag == "val":
-                eval_loss_list.append(loss.item())
                 self.m_valid_iteration += 1
+                eval_loss_list.append(loss.item())
 
             NLL_loss_list.append(NLL_loss.item())
-            KL_loss_z_list.append(KL_loss_z.item())
-            KL_loss_s_list.append(KL_loss_s.item())
-            RRe_loss_list.append(RRe_loss.item())
-            ARe_loss_list.append(ARe_loss.item())
+            # KL_loss_z_list.append(KL_loss_z.item())
+ 
+        # print("avg kl loss z:%.4f"%np.mean(KL_loss_z_list), end=', ')
+        # print("KL weight:%.4f"%self.m_KL_weight)
         
-        print("avg nll loss:%.4f"%np.mean(NLL_loss_list), end=', ')
-        print("avg kl loss z:%.4f"%np.mean(KL_loss_z_list), end=', ')
-        print("avg kl loss s:%.4f"% np.mean(KL_loss_s_list), end=', ')
-        print("RRe loss:%.4f"% np.mean(RRe_loss_list), end=', ')
-        print("ARe loss:%.4f"% np.mean(ARe_loss_list))
-
         if train_val_flag == "train":
             self.m_mean_train_loss = np.mean(train_loss_list)
         elif train_val_flag == "val":

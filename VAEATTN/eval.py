@@ -4,7 +4,7 @@ from nltk.translate.bleu_score import sentence_bleu
 import os
 from metric import get_bleu
 
-class INFER(object):
+class EVAL(object):
     def __init__(self, vocab_obj, args, device):
         super().__init__()
 
@@ -24,7 +24,7 @@ class INFER(object):
         self.m_device = device
         self.m_model_path = args.model_path
 
-    def f_init_infer(self, network, model_file=None, reload_model=False):
+    def f_init_eval(self, network, model_file=None, reload_model=False):
         if reload_model:
             print("reload model")
             if not model_file:
@@ -36,64 +36,47 @@ class INFER(object):
 
         self.m_network = network
 
-    def f_inference(self, eval_data):
+    def f_eval(self, eval_data):
         self.m_mean_loss = 0
         # for epoch_i in range(self.m_epoch):
         # batch_size = args.batch_size
 
         infer_loss_list = []
         
-        batch_index = 0
-
         bleu_score_list = []
 
-        for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
+        hidden_size = self.m_network.m_hidden_size
+        batch_size = self.m_batch_size
 
-            # if batch_index > 0:
-            #     break
-
-            batch_index += 1
-
+        for input_batch, target_batch, length_batch in eval_data:
+            
             input_batch = input_batch.to(self.m_device)
-            user_batch = user_batch.to(self.m_device)
             length_batch = length_batch.to(self.m_device)
             target_batch = target_batch.to(self.m_device)
-            RRe_batch = RRe_batch.to(self.m_device)
-            ARe_batch = ARe_batch.to(self.m_device)
-
-            logp, z_mean_prior, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
-            # print("*"*10, "encode -->  decode <--", "*"*10)
             
-            # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+            logp, z_mean, z_logv, z = self.m_network(input_batch, length_batch)
 
-            # mean = mean.unsqueeze(0)
-            # print("size", z_mean.size(), s_mean.size())
-            mean = torch.cat([z_mean, s_mean], dim=1)
+            # hidden = torch.randn([batch_size, hidden_size]).to(self.m_device)
+            # mean = hidden
+            mean = z_mean
+
             max_seq_len = max(length_batch)
             samples, z = self.f_decode_text(mean, max_seq_len)
 
-            # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+            pred = samples.cpu().tolist()
+            target = target_batch.cpu().tolist()
+            
+            target = [target_i[:length_batch.cpu()[index]]for index, target_i in enumerate(target)]
 
-            bleu_score_batch = self.f_eval(samples.cpu(), target_batch.cpu(), length_batch.cpu())
-            # print("batch bleu score", bleu_score_batch)
+            bleu_score_batch = get_bleu(pred, target)
+
+            # bleu_score_batch = self.f_get_bleu_score(samples.cpu(), target_batch.cpu(), length_batch.cpu())
 
             bleu_score_list.append(bleu_score_batch)
 
-            # print("<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
         mean_bleu_score = np.mean(bleu_score_list)
         print("bleu score", mean_bleu_score)
-            
-    def f_eval(self, pred, target, length):
-
-        pred = pred.tolist()
-        pred = [pred_i[:length[index]]for index, pred_i in enumerate(pred)]
-        target = target.tolist()
-        target = [target_i[:length[index]]for index, target_i in enumerate(target)]
-
-        bleu_score = get_bleu(pred, target)
-        return bleu_score
-
+     
     def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:
             assert "z is none"

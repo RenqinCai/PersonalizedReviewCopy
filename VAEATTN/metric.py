@@ -12,8 +12,7 @@ class Reconstruction_loss(nn.Module):
         self.m_NLL = nn.NLLLoss(size_average=False, ignore_index=ignore_index).to(self.m_device)
 
     def forward(self, pred, target, length):
-        # target = target[:, :torch.max(length).item()].contiguous().view(-1)
-        target = target.contiguous().view(-1)
+        target = target[:, :torch.max(length).item()].contiguous().view(-1)
         pred = pred.view(-1, pred.size(2))
 
         NLL_loss = self.m_NLL(pred, target)

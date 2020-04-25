@@ -9,20 +9,21 @@ class Reconstruction_loss(nn.Module):
     def __init__(self, ignore_index, device):
         super(Reconstruction_loss, self).__init__()
         self.m_device = device
-        self.m_NLL = nn.NLLLoss(size_average=False, ignore_index=ignore_index).to(self.m_device)
+        self.m_XE = nn.CrossEntropyLoss(size_average=False, ignore_index=ignore_index).to(self.m_device)
+        # self.m_NLL = nn.NLLLoss(size_average=False, ignore_index=ignore_index).to(self.m_device)
 
     def forward(self, pred, target, length):
-        # target = target[:, :torch.max(length).item()].contiguous().view(-1)
-        target = target.contiguous().view(-1)
-        pred = pred.view(-1, pred.size(2))
+        target = target[:, :torch.max(length).item()].contiguous().view(-1)
+        pred = pred.view(-1, pred.size(1))
 
-        NLL_loss = self.m_NLL(pred, target)
+        NLL_loss = self.m_XE(pred, target)
+        # NLL_loss = self.m_NLL(pred, target)
         return NLL_loss
 
-class KL_loss_customize(nn.Module):
+class KL_loss_z(nn.Module):
     def __init__(self, device):
-        super(KL_loss_customize, self).__init__()
-        print("KL_loss_customize")
+        super(KL_loss_z, self).__init__()
+        print("kl loss for z")
 
         self.m_device = device
     
@@ -42,79 +43,25 @@ class KL_loss_customize(nn.Module):
 
         return loss, weight
 
-class KL_loss_standard(nn.Module):
-    def __init__(self, device, anneal_func):
-        super(KL_loss_standard, self).__init__()
-        print("KL_loss_standard")
+class KL_loss(nn.Module):
+    def __init__(self, device):
+        super(KL_loss, self).__init__()
+        print("kl loss")
 
         self.m_device = device
-        self.m_anneal_func = anneal_func
-        if anneal_func == "logistic":
-            self.f_logistic()
-        elif anneal_func == "linear":
-            self.f_linear()
-        elif anneal_func == "cycle":
-            self.f_linear_cycle()
-        else:
-            raise NotImplementedError
 
-    def f_linear_cycle(self, start=0.0, stop=1.0, n_epoch=4000, n_cycle=4, ratio=0.5):
-        period = n_epoch/n_cycle
-        step_width = (stop-start)/(period*ratio)
-
-        self.m_period = period
-        self.m_step_width = step_width
-
-    def f_linear(self, x0=10000):
-        self.m_x0 = x0
-    
-    def f_logistic(self, k=0.0025, x0=2500):
-        self.m_k = k
-        self.m_x0 = x0
-
-    def forward(self, mean, logv, step):
+    def forward(self, mean, logv, step, k, x0, anneal_func):
         loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
 
-        # weight = 0.2
-        # return loss, weight 
-        if self.m_anneal_func == "logistic":
-            weight = float(1/(1+np.exp(-self.m_k*(step-self.m_x0))))
-        elif self.m_anneal_func == "linear":
-            weight = min(1, step/self.m_x0)
-        elif self.m_anneal_func == "cycle":
-            # print("anneal_func", anneal_func)
-            weight = 0.0
-            if step > self.m_period*4:
-                weight = 1.0
-            else:
-                tau = step%self.m_period
-                weight = tau*self.m_step_width
-                if weight > 1.0:
-                    weight = 1.0
+        weight = 0
+        if anneal_func == "logistic":
+            weight = float(1/(1+np.exp(-k*(step-x0))))
+        elif anneal_func == "":
+            weight = min(1, step/x0)
         else:
             raise NotImplementedError
 
         return loss, weight
-
-    # def forward(self, mean, logv, step, k, x0, cycle=1e3, restart=0.5, anneal_func='logistic'):
-    #     loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
-
-    #     weight = 0
-    #     if anneal_func == "logistic":
-    #         weight = float(1/(1+np.exp(-k*(step-x0))))
-    #     elif anneal_func == "linear":
-    #         weight = min(1, step/x0)
-    #     elif anneal_func == "cycle":
-    #         # print("anneal_func", anneal_func)
-    #         tau = ((step-1)%cycle)/cycle
-    #         if tau > restart:
-    #             weight = 1
-    #         else:
-    #             weight = tau
-    #     else:
-    #         raise NotImplementedError
-
-    #     return loss, weight
 
 class RRe_loss(nn.Module):
     def __init__(self, device):

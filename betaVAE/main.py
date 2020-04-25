@@ -4,17 +4,18 @@ import time
 import torch
 import argparse
 import numpy as np
-
+# from ptb import PTB, _Data
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from train import TRAINER
 
 from data import Amazon, _Data
 from model import REVIEWDI
-
+import datetime
 from inference import INFER
 from optimizer import Optimizer
 from logger import Logger
+from eval import EVAL
 
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
@@ -25,35 +26,58 @@ def main(args):
     #     data = pickle.load(file)
 
     data_obj = _Data()
-    train_data, valid_data, vocab_obj, user_num= data_obj._load_data(args)
-    # train_data, valid_data = data()
+
+    train_data, valid_data, vocab_obj = data_obj.f_load_data_amazon(args)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("device", device)
-
+    
     logger_obj = Logger()
     logger_obj.f_add_writer(args)
 
     ### add count parameters
-    
+    if not args.test:
+        now_time = datetime.datetime.now()
+        time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
+        model_file = os.path.join(args.model_path, args.model_name+"/model_best_"+time_name+".pt")
+        args.model_file = model_file
+
+    print("vocab_size", len(vocab_obj.m_w2i))
+
     ### get model
-    network = REVIEWDI(vocab_obj, user_num, args, device=device)
+    # user_num = 10
+    network = REVIEWDI(vocab_obj, args, device=device)
 
-    # optimizer = Optimizer(network.parameters(), args)
+    total_param_num = 0
+    for name, param in network.named_parameters():
+        if param.requires_grad:
+            param_num = param.numel()
+            total_param_num += param_num
+            print(name, "\t", param_num)
+        
+    print("total parameters num", total_param_num)
 
-    # trainer = TRAINER(vocab_obj, args, device)
-    # trainer.f_train(train_data, valid_data, network, optimizer, logger_obj)
+    if not args.test:
+        optimizer = Optimizer(network.parameters(), args)
 
-    print("="*10, "inference", "="*10)
-    
-    infer = INFER(vocab_obj, args, device)
+        trainer = TRAINER(vocab_obj, args, device)
+        trainer.f_train(train_data, valid_data, network, optimizer, logger_obj)
 
-    infer.f_init_infer(network, args.model_file, reload_model=True)
+    if args.test:
+        print("="*10, "eval", "="*10)
+        # eval_obj = EVAL(vocab_obj, args, device)
+        # eval_obj.f_init_eval(network, args.model_file, reload_model=True)
+        # eval_obj.f_eval(valid_data)
+        
+        print("="*10, "inference", "="*10)
+        
+        infer = INFER(vocab_obj, args, device)
 
-    infer.f_inference(valid_data)
+        infer.f_init_infer(network, args.model_file, reload_model=True)
+
+        infer.f_inference(valid_data)
 
     logger_obj.f_close_writer()
-    ### get the batch
+    # ### get the batch
 
 
     ### get the loss
@@ -77,10 +101,10 @@ if __name__ == "__main__":
 
     parser.add_argument('-hs', '--hidden_size', type=int, default=256)
     parser.add_argument('-nl', '--num_layers', type=int, default=1)
-    parser.add_argument('-ls', '--latent_size', type=int, default=256)
+    parser.add_argument('-ls', '--latent_size', type=int, default=16)
     parser.add_argument('-wd', '--word_dropout', type=float, default=0)
 
-    parser.add_argument('-af', '--anneal_func', type=str, default='logistic')
+    parser.add_argument('-af', '--anneal_func', type=str, default='beta')
     parser.add_argument('-k', '--k', type=float, default=0.0025)
     parser.add_argument('-x0', '--x0', type=int, default=2500)
 
@@ -90,15 +114,17 @@ if __name__ == "__main__":
     parser.add_argument('-bi', '--bidirectional', action='store_true')
     parser.add_argument('-rnn', '--rnn_type', type=str, default='GRU')
     parser.add_argument('-ep', '--epochs', type=int, default=10)
-    parser.add_argument('-bs', '--batch_size', type=int, default=10)
+    parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
     parser.add_argument('-m', '--momentum', type=float, default=0.00)
     parser.add_argument('--weight_decay', type=float, default=0.00)
     parser.add_argument('--eps', type=float, default=0.0001)
-
-    parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="REVIEWDI")
     
+    parser.add_argument('--model_file', type=str, default="model_best.pt")
+    parser.add_argument('-md', '--model_name', type=str, default='betaVAE')
+    parser.add_argument('--test', action="store_true", default=False)
+    parser.add_argument('--print_interval', type=int, default=400)
+
     args = parser.parse_args()
 
     # args.rnn_type = args.rnn_type.lower()

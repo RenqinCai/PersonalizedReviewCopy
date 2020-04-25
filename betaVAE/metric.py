@@ -14,7 +14,10 @@ class Reconstruction_loss(nn.Module):
     def forward(self, pred, target, length):
         # target = target[:, :torch.max(length).item()].contiguous().view(-1)
         target = target.contiguous().view(-1)
+
         pred = pred.view(-1, pred.size(2))
+        # print("target", target)
+        # print("pred", pred)
 
         NLL_loss = self.m_NLL(pred, target)
         return NLL_loss
@@ -49,6 +52,9 @@ class KL_loss_standard(nn.Module):
 
         self.m_device = device
         self.m_anneal_func = anneal_func
+
+        if anneal_func == "beta":
+            return
         if anneal_func == "logistic":
             self.f_logistic()
         elif anneal_func == "linear":
@@ -77,7 +83,9 @@ class KL_loss_standard(nn.Module):
 
         # weight = 0.2
         # return loss, weight 
-        if self.m_anneal_func == "logistic":
+        if self.m_anneal_func == "beta":
+            weight = 0.1
+        elif self.m_anneal_func == "logistic":
             weight = float(1/(1+np.exp(-self.m_k*(step-self.m_x0))))
         elif self.m_anneal_func == "linear":
             weight = min(1, step/self.m_x0)

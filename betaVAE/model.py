@@ -33,6 +33,7 @@ class REVIEWDI(nn.Module):
 
         self.m_encoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=True, batch_first=True)
         self.m_decoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=self.m_bidirectional, batch_first=True)
+        # self.m_decoder_rnn = nn.GRU(self.m_embedding_size*2, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=self.m_bidirectional, batch_first=True)
 
         self.m_hidden_factor = (2 if self.m_bidirectional else 1)*self.m_num_layers
 
@@ -124,7 +125,9 @@ class REVIEWDI(nn.Module):
 
         # print("0 input_embedding", input_embedding)
         # print("repeat_hidden_0", repeat_hidden_0)
+
         input_embedding = input_embedding+repeat_hidden_0
+        # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
 
         # packed_input = rnn_utils.pack_padded_sequence(input_embedding, sorted_lengths.data.tolist(), batch_first=True)
         

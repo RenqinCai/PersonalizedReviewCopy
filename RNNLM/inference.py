@@ -6,7 +6,6 @@ from metric import get_bleu
 from beam import Beam
 import torch.nn.functional as F
 
-
 class INFER(object):
     def __init__(self, vocab_obj, args, device):
         super().__init__()
@@ -15,6 +14,8 @@ class INFER(object):
         self.m_eos_idx = vocab_obj.eos_idx
         self.m_pad_idx = vocab_obj.pad_idx
         self.m_i2w = vocab_obj.m_i2w
+        
+        # print("44", self.m_i2w[str(44)])
 
         self.m_epoch = args.epochs
         self.m_batch_size = args.batch_size 
@@ -27,7 +28,6 @@ class INFER(object):
         self.m_device = device
         self.m_model_path = args.model_path
         self.m_beam_size = 5
-        self.m_concat = args.concat
 
     def f_init_infer(self, network, model_file=None, reload_model=False):
         if reload_model:
@@ -52,6 +52,9 @@ class INFER(object):
 
         bleu_score_list = []
 
+        hidden_size = self.m_network.m_hidden_size
+        batch_size = self.m_batch_size
+
         for input_batch, target_batch, length_batch in eval_data:
             
             if batch_index > 1:
@@ -61,42 +64,23 @@ class INFER(object):
             input_batch = input_batch.to(self.m_device)
             length_batch = length_batch.to(self.m_device)
             target_batch = target_batch.to(self.m_device)
-
-            # logp, z_mean, z_logv, z, pre_z = self.m_network(input_batch, length_batch)
-            # print(" "*10, "*"*10, " "*10)
-
-            logp, _, _, _, last_en_hidden, hidden_0 = self.m_network(input_batch, length_batch)
-
-            # KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
-
-            # print("z_mean", z_mean)
-            # print("z", z)
-            # print("z_logv", z_logv)
-            # print("KL loss", KL_loss)
             
             print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+            
+            hidden = torch.randn([batch_size, hidden_size]).to(self.m_device)
+            mean = hidden
+            # print("hidden", hidden)
 
-            # mean = mean.unsqueeze(0)
-            # print("z_mean", z_mean)
-            # print("z_logv", z_logv)
-
-            # print()
-            # print("z", z)
-            # mean = torch.cat([z_mean], dim=1)
-            # mean = z_mean
-            mean = last_en_hidden
             max_seq_len = max(length_batch)
-            samples, scores = self.f_decode_text(mean, hidden_0, max_seq_len)
+            samples, scores = self.f_decode_text_beam(mean, max_seq_len)
 
             pred = samples
             target = target_batch.cpu().tolist()
             target = [target_i[:length_batch.cpu()[index]]for index, target_i in enumerate(target)]
 
             bleu_score_batch = get_bleu(pred, target)
-            # print("mean", mean)
-            # print("input_batch", input_batch)
+            # bleu_score_batch = self.f_eval(pred, target_batch.cpu(), length_batch.cpu())
 
-            # bleu_score_batch = self.f_eval(samples.cpu(), target_batch.cpu(), length_batch.cpu())
             print("batch bleu score", bleu_score_batch)
             bleu_score_list.append(bleu_score_batch)
 
@@ -105,6 +89,15 @@ class INFER(object):
         mean_bleu_score = np.mean(bleu_score_list)
         print("bleu score", mean_bleu_score)
 
+    # def f_eval(self, pred, target, length):
+
+    #     pred = pred.tolist()
+    #     target = target.tolist()
+    #     target = [target_i[:length[index]]for index, target_i in enumerate(target)]
+
+    #     bleu_score = get_bleu(pred, target)
+    #     return bleu_score
+     
     def f_decode_text_beam(self, z, max_seq_len, n=4):
         if z is None:
             assert "z is none"
@@ -114,10 +107,7 @@ class INFER(object):
         beam_size = self.m_beam_size
 
         ### hidden size: batch_size*hidden_size
-        # hidden = z
-        # hidden = self.m_network.m_latent2hidden(z)
-        
-        hidden = self.m_network.m_hidden2hidden(z)
+        hidden = z
 
         ### hidden size: 1*batch_size*hidden_size
         hidden = hidden.unsqueeze(0)
@@ -144,16 +134,12 @@ class INFER(object):
             ### input_emb: (remain_size*beam_size)*1*embed_size
             input_emb = self.m_network.m_embedding(input.transpose(1, 0))
 
-            # print("input_emb", input_emb.size())
-            # print("hidden_beam", hidden_beam.size())
             ### output: (remain_size*beam_size)*1*hidden_size
             ### hidden_beam: 1*(remain_size*beam_size)*hidden_size
             output, hidden_beam = self.m_network.m_decoder_rnn(input_emb, hidden_beam)
 
             ### logits: (remain_size*beam_size)*voc_size           
-            # logits = self.m_network.m_linear_output(output.squeeze(1))
-
-            logits = self.m_network.m_output2vocab(output.squeeze(1))
+            logits = self.m_network.m_linear_output(output.squeeze(1))
 
             ### pred_prob: (remain_size*beam_size)*voc_size  
             pred_prob = F.log_softmax(logits, dim=-1)
@@ -230,16 +216,15 @@ class INFER(object):
             all_hyp += [hyps]
 
         return all_hyp, all_scores
-     
-    def f_decode_text(self, z, hidden_0, max_seq_len, n=4):
+
+    def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:
             assert "z is none"
 
         batch_size = self.m_batch_size
-        
-        init_de_hidden = torch.zeros(z.size()).to(self.m_device)
-        
-        hidden = init_de_hidden.unsqueeze(0)
+
+        hidden = z
+        hidden = hidden.unsqueeze(0)
 
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
@@ -252,35 +237,23 @@ class INFER(object):
         generations = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device).long()
 
         t = 0
-        # print("hidden size", hidden.size())
 
         while(t < max_seq_len and len(running_seqs)>0):
             # print("t", t)
             if t == 0:
-                input_seq = torch.zeros(batch_size).fill_(self.m_sos_idx).long().to(self.m_device)
+                start_index = self.m_sos_idx
+                start_word = str(start_index)
+                print("start word", self.m_i2w[start_word])
+                input_seq = torch.zeros(batch_size).fill_(start_index).long().to(self.m_device)
             
             input_seq = input_seq.unsqueeze(1)
             # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
 
-            # repeat_size = input_embedding.size()[0]
-            # print("input_embedding.size()", input_embedding.size())
-            # print("z size", z.size())
-            # repeat_z = z.unsqueeze(1).expand(repeat_size, 1, -1).contiguous()
-
-            repeat_hidden_0 = hidden_0.unsqueeze(1)
-            repeat_hidden_0 = repeat_hidden_0.expand(hidden_0.size(0), input_embedding.size(1), hidden_0.size(-1))
-            # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
-
-            # if self.m_concat:
-            #     input_embedding = torch.cat([input_embedding, repeat_z], dim=-1)
             # print("input_embedding", input_embedding.size())
-
-            input_embedding = input_embedding+repeat_hidden_0
-
             output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
 
-            logits = self.m_network.m_output2vocab(output)
+            logits = self.m_network.m_linear_output(output)
 
             input_seq = self._sample(logits)
 
@@ -299,22 +272,12 @@ class INFER(object):
                 input_seq = input_seq[running_seqs]
 
                 hidden = hidden[:, running_seqs]
-                hidden_0 = hidden_0[running_seqs]
-
-                z = z[running_seqs]
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
 
             t += 1
 
         return generations, z
-
-    # def _sample(self, dist, mode="greedy"):
-    #     if mode == 'greedy':
-    #         _, sample = torch.topk(dist, 1, dim=-1)
-    #     sample = sample.squeeze()
-
-    #     return sample
 
     def _sample(self, dist, mode="greedy"):
         topk = 1
@@ -323,7 +286,7 @@ class INFER(object):
             _, sample = torch.topk(dist, topk, dim=-1)
             sample = sample.squeeze(1)
 
-            # print("sample", sample.size())
+            print("sample", sample.size())
 
             sample_size = sample.size()
             sample_num = sample_size[0]

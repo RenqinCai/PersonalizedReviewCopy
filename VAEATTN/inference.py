@@ -65,7 +65,7 @@ class INFER(object):
             # logp, z_mean, z_logv, z, pre_z = self.m_network(input_batch, length_batch)
             # print(" "*10, "*"*10, " "*10)
 
-            logp, _, _, _, last_en_hidden, hidden_0 = self.m_network(input_batch, length_batch)
+            logp, z_mean, z_logv, z, last_en_hidden, encoder_outputs = self.m_network(input_batch, length_batch)
 
             # KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
 
@@ -83,10 +83,11 @@ class INFER(object):
             # print()
             # print("z", z)
             # mean = torch.cat([z_mean], dim=1)
-            # mean = z_mean
-            mean = last_en_hidden
+            # mean = torch.randn(last_en_hidden.size()).to(self.m_device)
+            mean = z_mean
             max_seq_len = max(length_batch)
-            samples, scores = self.f_decode_text(mean, hidden_0, max_seq_len)
+            samples, scores = self.f_decode_text(mean, encoder_outputs, max_seq_len)
+            # samples, scores = self.f_decode_text_beam(mean, max_seq_len)
 
             pred = samples
             target = target_batch.cpu().tolist()
@@ -115,9 +116,7 @@ class INFER(object):
 
         ### hidden size: batch_size*hidden_size
         # hidden = z
-        # hidden = self.m_network.m_latent2hidden(z)
-        
-        hidden = self.m_network.m_hidden2hidden(z)
+        hidden = self.m_network.m_latent2hidden(z)
 
         ### hidden size: 1*batch_size*hidden_size
         hidden = hidden.unsqueeze(0)
@@ -231,15 +230,16 @@ class INFER(object):
 
         return all_hyp, all_scores
      
-    def f_decode_text(self, z, hidden_0, max_seq_len, n=4):
+    def f_decode_text(self, z, encoder_outputs, max_seq_len, n=4):
         if z is None:
             assert "z is none"
 
         batch_size = self.m_batch_size
+
+        # init_de_hidden = self.m_latent2hidden(z)
+        hidden = self.m_network.m_latent2hidden(z)
         
-        init_de_hidden = torch.zeros(z.size()).to(self.m_device)
-        
-        hidden = init_de_hidden.unsqueeze(0)
+        hidden = hidden.unsqueeze(0)
 
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
@@ -252,10 +252,13 @@ class INFER(object):
         generations = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device).long()
 
         t = 0
-        # print("hidden size", hidden.size())
+        # init_hidden = hidden
 
+        # print("hidden size", hidden.size())
+        print("max_seq_len", max_seq_len)
         while(t < max_seq_len and len(running_seqs)>0):
             # print("t", t)
+            # print("len(running_seqs)", len(running_seqs))
             if t == 0:
                 input_seq = torch.zeros(batch_size).fill_(self.m_sos_idx).long().to(self.m_device)
             
@@ -263,22 +266,24 @@ class INFER(object):
             # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
 
-            # repeat_size = input_embedding.size()[0]
+            repeat_size = input_embedding.size()[0]
             # print("input_embedding.size()", input_embedding.size())
             # print("z size", z.size())
-            # repeat_z = z.unsqueeze(1).expand(repeat_size, 1, -1).contiguous()
+            repeat_z = z.unsqueeze(1).expand(repeat_size, 1, -1).contiguous()
 
-            repeat_hidden_0 = hidden_0.unsqueeze(1)
-            repeat_hidden_0 = repeat_hidden_0.expand(hidden_0.size(0), input_embedding.size(1), hidden_0.size(-1))
-            # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
-
-            # if self.m_concat:
-            #     input_embedding = torch.cat([input_embedding, repeat_z], dim=-1)
+            if self.m_concat:
+                input_embedding = torch.cat([input_embedding, repeat_z], dim=-1)
             # print("input_embedding", input_embedding.size())
-
-            input_embedding = input_embedding+repeat_hidden_0
-
             output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
+            # print("hidden", hidden.size())
+            alignment_scores = self.m_network.m_attn(output, encoder_outputs)
+            
+            # attn_weights = F.softmax(alignment_scores.view(1, -1), dim=1)
+            attn_weights = F.softmax(alignment_scores, dim=-1)
+            # print("attn_weights", attn_weights)
+            context_vector = torch.bmm(attn_weights, encoder_outputs)
+
+            output = torch.cat([output, context_vector], dim=-1)
 
             logits = self.m_network.m_output2vocab(output)
 
@@ -299,7 +304,7 @@ class INFER(object):
                 input_seq = input_seq[running_seqs]
 
                 hidden = hidden[:, running_seqs]
-                hidden_0 = hidden_0[running_seqs]
+                encoder_outputs = encoder_outputs[running_seqs]
 
                 z = z[running_seqs]
 

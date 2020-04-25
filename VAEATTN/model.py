@@ -32,8 +32,8 @@ class REVIEWDI(nn.Module):
         self.m_embedding_dropout = nn.Dropout(p=self.m_embedding_dropout)
 
         self.m_encoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=self.m_bidirectional, batch_first=True)
-        self.m_decoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=self.m_bidirectional, batch_first=True)
-
+        # self.m_decoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=self.m_bidirectional, batch_first=True)
+        
         self.m_hidden_factor = (2 if self.m_bidirectional else 1)*self.m_num_layers
 
         self.m_hidden2mean_z = nn.Linear(self.m_hidden_size*self.m_hidden_factor, self.m_latent_size)
@@ -41,10 +41,12 @@ class REVIEWDI(nn.Module):
 
         self.m_latent2hidden = nn.Linear(self.m_latent_size, self.m_hidden_size*self.m_hidden_factor)
 
-        # self.m_hidden2hidden = nn.Linear(self.m_hidden_size, self.m_hidden_size)
-        self.m_hidden2hidden = nn.Linear(self.m_hidden_size, self.m_embedding_size)
+        self.m_hidden2hidden = nn.Linear(self.m_hidden_size, self.m_hidden_size)
 
-        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        self.m_decoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, batch_first=True)
+        self.m_attn = _Attention(self.m_hidden_size, "general")
+
+        self.m_output2vocab = nn.Linear(self.m_hidden_size*2, self.m_vocab_size)
 
         self = self.to(self.m_device)
 
@@ -57,26 +59,38 @@ class REVIEWDI(nn.Module):
         packed_input = rnn_utils.pack_padded_sequence(input_embedding, sorted_lengths.data.tolist(), batch_first=True)
 
         encoder_outputs, hidden = self.m_encoder_rnn(packed_input)
-
+        
         encoder_outputs = rnn_utils.pad_packed_sequence(encoder_outputs, batch_first=True)[0]
+        
+        # print("length", length)
+        # print("encoder_output", encoder_outputs[:, -1, :])
         encoder_outputs = encoder_outputs.contiguous()
         _, reversed_idx = torch.sort(sorted_idx)
         encoder_outputs = encoder_outputs[reversed_idx]
 
         first_dim_index = torch.arange(batch_size).to(self.m_device)
+        # second_dim_index = torch.from_numpy(actionNum_short_batch).to(self.device)
         second_dim_index = (length-1).long()
 
         ### batch_size*hidden_size
         last_en_hidden = encoder_outputs[first_dim_index, second_dim_index, :].contiguous()
 
-        if self.m_bidirectional or self.m_num_layers > 1:
-            last_en_hidden = last_en_hidden.view(batch_size, self.m_hidden_size*self.m_hidden_factor)
-        else:
-            last_en_hidden = last_en_hidden.squeeze()
+        # if self.m_bidirectional or self.m_num_layers > 1:
+        #     hidden = hidden.view(batch_size, self.m_hidden_size*self.m_hidden_factor)
+        # else:
+        #     encoder_last_hidden = encoder_last_hidden.squeeze()
 
-        hidden_0 = self.m_hidden2hidden(last_en_hidden)
+        z_mean = self.m_hidden2mean_z(last_en_hidden)
+        z_logv = self.m_hidden2logv_z(last_en_hidden)
+        z_std = torch.exp(0.5*z_logv)
 
-        init_de_hidden = torch.zeros([batch_size, self.m_hidden_size]).to(self.m_device)
+        pre_z = torch.randn([batch_size, self.m_latent_size]).to(self.m_device)
+        # # print("pre_z", pre_z)
+        # # print("z_std", z_std)
+        # # print("pre_z*z_std", pre_z*z_std)
+        z = pre_z*z_std + z_mean
+
+        init_de_hidden = self.m_latent2hidden(z)
 
         if self.m_bidirectional or self.m_num_layers > 1:
             init_de_hidden = init_de_hidden.view(self.m_hidden_factor, batch_size, self.m_hidden_size)
@@ -96,25 +110,55 @@ class REVIEWDI(nn.Module):
         input_embedding = self.m_embedding_dropout(input_embedding)
         
         ### concatenate hidden with input 
-        repeat_hidden_0 = hidden_0.unsqueeze(1)
-        repeat_hidden_0 = repeat_hidden_0.expand(hidden_0.size(0), input_embedding.size(1), hidden_0.size(-1))
-
-        input_embedding = input_embedding+repeat_hidden_0
-        # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
-
+        # repeat_hidden = hidden.squeeze(0)
+        
         packed_input = rnn_utils.pack_padded_sequence(input_embedding, sorted_lengths.data.tolist(), batch_first=True)
         
-        outputs, _ = self.m_decoder_rnn(packed_input)
+        outputs, _ = self.m_decoder_rnn(packed_input, init_de_hidden)
 
         padded_outputs = rnn_utils.pad_packed_sequence(outputs, batch_first=True)[0]
         padded_outputs = padded_outputs.contiguous()
 
         _, reversed_idx = torch.sort(sorted_idx)
-        output = padded_outputs[reversed_idx]
+        padded_outputs = padded_outputs[reversed_idx]
 
-        # output = torch.cat([padded_outputs, repeat_hidden_0], dim=-1)
+        alignment_scores = self.m_attn(padded_outputs, encoder_outputs)
+        
+        attn_weights = F.softmax(alignment_scores, dim=-1)
+        # print("attn_weights", attn_weights)
+        context_vector = torch.bmm(attn_weights, encoder_outputs)
+
+        output = torch.cat([padded_outputs, context_vector], dim=-1)
 
         logp = nn.functional.log_softmax(self.m_output2vocab(output.view(-1, output.size(2))), dim=-1)
         logp = logp.view(batch_size, -1, self.m_vocab_size)
 
-        return logp, _, _, _, last_en_hidden , hidden_0
+        return logp, z_mean, z_logv, z, last_en_hidden, encoder_outputs
+
+class _Attention(nn.Module):
+    def __init__(self, hidden_size, method='general'):
+        super(_Attention, self).__init__()
+        self.m_method = method
+        self.m_hidden_size = hidden_size
+        
+        print("attention", self.m_method)
+        if self.m_method == "general":
+            self.m_fc = nn.Linear(self.m_hidden_size, self.m_hidden_size, bias=False)
+
+    def forward(self, decoder_hidden, encoder_outputs):
+        if self.m_method == "general":
+            out = self.m_fc(decoder_hidden)
+            # print("out", out.size(), encoder_outputs.size())
+            return out.bmm(encoder_outputs.transpose(1, 2)).squeeze(-1)
+        
+# class _Decoder(nn.Module):
+#     def __init__(self, embed_size, hidden_size):
+#         super(_Decoder, self).__init__()
+
+#         self.m_embed_size = embed_size
+#         self.m_hidden_size = hidden_size
+
+#         self.m_GRU = nn.GRU(self.m_embed_size, self.m_hidden_size, batch_first=True)
+
+#     def forward(self, inputs, hidden, encoder_outputs):
+        

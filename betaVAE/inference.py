@@ -6,7 +6,6 @@ from metric import get_bleu
 from beam import Beam
 import torch.nn.functional as F
 
-
 class INFER(object):
     def __init__(self, vocab_obj, args, device):
         super().__init__()
@@ -27,7 +26,6 @@ class INFER(object):
         self.m_device = device
         self.m_model_path = args.model_path
         self.m_beam_size = 5
-        self.m_concat = args.concat
 
     def f_init_infer(self, network, model_file=None, reload_model=False):
         if reload_model:
@@ -54,7 +52,7 @@ class INFER(object):
 
         for input_batch, target_batch, length_batch in eval_data:
             
-            if batch_index > 1:
+            if batch_index > 10:
                 continue
             batch_index += 1
 
@@ -62,12 +60,13 @@ class INFER(object):
             length_batch = length_batch.to(self.m_device)
             target_batch = target_batch.to(self.m_device)
 
+            print("input_batch", input_batch.size())
             # logp, z_mean, z_logv, z, pre_z = self.m_network(input_batch, length_batch)
             # print(" "*10, "*"*10, " "*10)
 
-            logp, _, _, _, last_en_hidden, hidden_0 = self.m_network(input_batch, length_batch)
+            logp, z_mean, z_logv, z, _, _ = self.m_network(input_batch, length_batch)
 
-            # KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
+            KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
 
             # print("z_mean", z_mean)
             # print("z", z)
@@ -83,10 +82,12 @@ class INFER(object):
             # print()
             # print("z", z)
             # mean = torch.cat([z_mean], dim=1)
-            # mean = z_mean
-            mean = last_en_hidden
+            mean = z_mean
+            # mean = torch.zeros(z_mean.size()).to(self.m_device)
+            # mean = torch.randn(z_mean.size()).to(self.m_device)
             max_seq_len = max(length_batch)
-            samples, scores = self.f_decode_text(mean, hidden_0, max_seq_len)
+            samples, scores = self.f_decode_text(mean, max_seq_len)
+            # samples, scores = self.f_decode_text_beam(mean, max_seq_len)
 
             pred = samples
             target = target_batch.cpu().tolist()
@@ -115,9 +116,7 @@ class INFER(object):
 
         ### hidden size: batch_size*hidden_size
         # hidden = z
-        # hidden = self.m_network.m_latent2hidden(z)
-        
-        hidden = self.m_network.m_hidden2hidden(z)
+        hidden = self.m_network.m_latent2hidden(z)
 
         ### hidden size: 1*batch_size*hidden_size
         hidden = hidden.unsqueeze(0)
@@ -231,52 +230,57 @@ class INFER(object):
 
         return all_hyp, all_scores
      
-    def f_decode_text(self, z, hidden_0, max_seq_len, n=4):
+    def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:
             assert "z is none"
 
-        batch_size = self.m_batch_size
-        
-        init_de_hidden = torch.zeros(z.size()).to(self.m_device)
-        
-        hidden = init_de_hidden.unsqueeze(0)
+        if len(z.size()) < 2:
+            print("before z", z.size())
+            z = z.unsqueeze(0)
+            print("z after", z.size())
+
+        batch_size = z.size(0)
+
+        init_de_hidden = self.m_network.m_latent2hidden(z)
+
+        # hidden = init_de_hidden.unsqueeze(0)
 
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
         seq_running = torch.arange(0, batch_size).long().to(self.m_device)
 
         seq_mask = torch.ones(batch_size).bool().to(self.m_device)
+        # seq_mask = torch.ones(batch_size).to(self.m_device)
 
         running_seqs = torch.arange(0, batch_size).long().to(self.m_device)
 
         generations = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device).long()
 
         t = 0
+
         # print("hidden size", hidden.size())
+        repeat_hidden_0 = init_de_hidden.unsqueeze(1)
+        # repeat_hidden_0 = repeat_hidden_0.expand(input_embedding.size(0), input_embedding.size(1), init_de_hidden.size(-1))
+
+        hidden = None
 
         while(t < max_seq_len and len(running_seqs)>0):
             # print("t", t)
             if t == 0:
                 input_seq = torch.zeros(batch_size).fill_(self.m_sos_idx).long().to(self.m_device)
-            
+
+            # print("input_seq", input_seq.size())
             input_seq = input_seq.unsqueeze(1)
-            # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
 
-            # repeat_size = input_embedding.size()[0]
-            # print("input_embedding.size()", input_embedding.size())
-            # print("z size", z.size())
-            # repeat_z = z.unsqueeze(1).expand(repeat_size, 1, -1).contiguous()
-
-            repeat_hidden_0 = hidden_0.unsqueeze(1)
-            repeat_hidden_0 = repeat_hidden_0.expand(hidden_0.size(0), input_embedding.size(1), hidden_0.size(-1))
-            # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
-
-            # if self.m_concat:
-            #     input_embedding = torch.cat([input_embedding, repeat_z], dim=-1)
-            # print("input_embedding", input_embedding.size())
+            if input_embedding.size(0) == repeat_hidden_0.size(0):
+                print("input_embedding", input_embedding.size())
+                print("repeat_hidden_0", repeat_hidden_0.size())
 
             input_embedding = input_embedding+repeat_hidden_0
+            # input_embedding = torch.cat([input_embedding, repeat_hidden_0], dim=-1)
+           
+            # assert input_embedding.size(0) == repeat_hidden_0.size(0)
 
             output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
 
@@ -299,9 +303,7 @@ class INFER(object):
                 input_seq = input_seq[running_seqs]
 
                 hidden = hidden[:, running_seqs]
-                hidden_0 = hidden_0[running_seqs]
-
-                z = z[running_seqs]
+                repeat_hidden_0 = repeat_hidden_0[running_seqs]
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
 
@@ -357,7 +359,7 @@ class INFER(object):
 def idx2word(idx, i2w, pad_idx):
 
     sent_str = [str()]*len(idx)
-
+    # print(i2w)
     for i, sent in enumerate(idx):
         # print(" "*10, "*"*10)
         for word_id in sent:
@@ -366,6 +368,7 @@ def idx2word(idx, i2w, pad_idx):
                 break
             # print('word_id', word_id.item())
             sent_str[i] += i2w[str(word_id.item())] + " "
+            # sent_str[i] += i2w[word_id.item()] + " "
 
         sent_str[i] = sent_str[i].strip()
 
