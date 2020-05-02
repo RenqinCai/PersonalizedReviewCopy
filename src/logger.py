@@ -15,7 +15,7 @@ class Logger():
 		output_file = myhost+"_"+file_time+str(data_name)
 
 		# print("output_file", output_file)
-		output_dir = "../log/"+args.model_name+"/"
+		output_dir = "../log_hcdmg1/"+args.model_name+"/"
 		if not os.path.exists(output_dir):
 			os.mkdir(output_dir)
 
@@ -24,7 +24,7 @@ class Logger():
 		self.m_io_writer = open(output_file, "w")
 
 		tensor_file_name = myhost+"_"+file_time
-		self.m_tensor_writer = SummaryWriter("../tensorboard/"+args.model_name+"/"+tensor_file_name)
+		self.m_tensor_writer = SummaryWriter("../tensorboard_hcdmg1/"+args.model_name+"/"+tensor_file_name)
 
 		self.f_add_output2IO("="*10+"parameters"+"="*10)
 		for attr, value in sorted(args.__dict__.items()):
@@ -34,6 +34,7 @@ class Logger():
 	def f_add_output2IO(self, msg):
 		print(msg)
 		self.m_io_writer.write(msg+"\n")
+		print("here")
 		self.m_io_writer.flush()
 
 	def f_add_scalar2tensorboard(self, scalar_name, scalar, index):

@@ -3,7 +3,7 @@ import torch
 import random
 from nltk.translate.bleu_score import sentence_bleu
 import os
-from metric import get_bleu
+from metric import get_bleu, get_recall
 import torch.nn.functional as F
 
 class INFER(object):
@@ -48,44 +48,40 @@ class INFER(object):
         batch_index = 0
 
         bleu_score_list = []
+        with torch.no_grad():
+            for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
 
-        for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
+                if batch_index > 0:
+                    break
 
-            if batch_index > 0:
-                break
+                batch_index += 1
 
-            batch_index += 1
+                input_batch = input_batch.to(self.m_device)
+                user_batch = user_batch.to(self.m_device)
+                length_batch = length_batch.to(self.m_device)
+                target_batch = target_batch.to(self.m_device)
+                RRe_batch = RRe_batch.to(self.m_device)
+                ARe_batch = ARe_batch.to(self.m_device)
 
-            input_batch = input_batch.to(self.m_device)
-            user_batch = user_batch.to(self.m_device)
-            length_batch = length_batch.to(self.m_device)
-            target_batch = target_batch.to(self.m_device)
-            RRe_batch = RRe_batch.to(self.m_device)
-            ARe_batch = ARe_batch.to(self.m_device)
+                logits, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
+                # print("*"*10, "encode -->  decode <--", "*"*10)
+                recall = get_recall(ARe_pred.cpu().numpy(), ARe_batch.cpu().numpy())
+                print("recall", np.mean(recall))
 
-            logp, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
-            # print("*"*10, "encode -->  decode <--", "*"*10)
-            
-            print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
-            # mean = mean.unsqueeze(0)
-            # print("size", z_mean.size(), s_mean.size())
-            # mean = torch.cat([z_mean, s_mean], dim=1)
-            mean = torch.cat([z_mean, s_mean], dim=1)
-            max_seq_len = max(length_batch)
-            samples, z = self.f_decode_text(mean, max_seq_len)
+                mean = ARe_pred
+                # print("encoder_hidden", init_de_hidden)
+                
+                samples, scores = self.f_decode_BOW(mean, length_batch)
 
-            # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                # recall = get_recall(samples.cpu().numpy(), target_batch.cpu().numpy())
+                # print("recall", np.mean(recall))
+                
+                print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
-            # bleu_score_batch = self.f_eval(samples.cpu(), target_batch.cpu(), length_batch.cpu())
-            # print("batch bleu score", bleu_score_batch)
-
-            # bleu_score_list.append(bleu_score_batch)
-
-            print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-        # mean_bleu_score = np.mean(bleu_score_list)
-        # print("bleu score", mean_bleu_score)
+            # mean_bleu_score = np.mean(bleu_score_list)
+            # print("bleu score", mean_bleu_score)
             
     def f_eval(self, pred, target, length):
 
@@ -96,6 +92,36 @@ class INFER(object):
 
         bleu_score = get_bleu(pred, target)
         return bleu_score
+
+    def f_decode_BOW(self, z, length_batch, n=4):
+        if z is None:
+            assert "z is none"
+
+        batch_size = self.m_batch_size
+
+        # hidden = self.m_network.m_latent2hidden(z)
+        # init_hidden = self.m_network.m_hidden2hidden(z)
+
+        # word_logits = self.m_network.m_output2vocab(z)
+
+        word_probs = F.log_softmax(z, dim=-1)
+        print("word_probs", word_probs.size())
+
+        max_seq_len = max(length_batch)
+
+        generations = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device).long()
+
+        for sample_index in range(batch_size):
+            length_index = length_batch[sample_index].item()
+            # sampled_words_index = np.random.choice(self.m_vocab_size, length_index, word_probs[sample_index].cpu().tolist())
+            topk_probs, sampled_words_index = torch.topk(word_probs[sample_index], length_index)
+
+            print("topk_probs", topk_probs, sampled_words_index)
+
+            generations[sample_index, :length_index] = sampled_words_index
+            # generations[sample_index, :length_index] = torch.from_numpy(sampled_words_index).to(self.m_device)
+        
+        return generations, z
 
     def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:

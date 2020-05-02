@@ -4,23 +4,24 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 from collections import Counter 
+import bottleneck as bn
 
-class Reconstruction_loss(nn.Module):
+class _REC_LOSS(nn.Module):
     def __init__(self, device, ignore_index):
-        super(Reconstruction_loss, self).__init__()
+        super(_REC_LOSS, self).__init__()
         self.m_device = device
         self.m_NLL = nn.NLLLoss(size_average=False, ignore_index=ignore_index).to(self.m_device)
 
-    def forward(self, pred, target, length):
-        target = target[:, :torch.max(length).item()].contiguous().view(-1)
-        pred = pred.view(-1, pred.size(2))
+    def forward(self, preds, targets, length):
+        pred_probs = F.log_softmax(preds.view(-1, preds.size(1)), dim=-1)
+        targets = targets.contiguous().view(-1)
 
-        NLL_loss = self.m_NLL(pred, target)
+        NLL_loss = self.m_NLL(pred_probs, targets)
         return NLL_loss
 
-class KL_loss_z(nn.Module):
+class _KL_LOSS_CUSTOMIZE(nn.Module):
     def __init__(self, device):
-        super(KL_loss_z, self).__init__()
+        super(_KL_LOSS_CUSTOMIZE, self).__init__()
         print("kl loss for z")
 
         self.m_device = device
@@ -41,29 +42,34 @@ class KL_loss_z(nn.Module):
 
         return loss, weight
 
-class KL_loss(nn.Module):
+class _KL_LOSS_STANDARD(nn.Module):
     def __init__(self, device):
-        super(KL_loss, self).__init__()
+        super(_KL_LOSS_STANDARD, self).__init__()
         print("kl loss")
 
         self.m_device = device
 
-    def forward(self, mean, logv, step, k, x0, anneal_func):
-        loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
+    def forward(self, mean, logv):
+        loss = -0.5*torch.sum(1+logv-mean.pow(2)-logv.exp())
 
-        weight = 0
-        if anneal_func == "logistic":
-            weight = float(1/(1+np.exp(-k*(step-x0))))
-        elif anneal_func == "":
-            weight = min(1, step/x0)
-        else:
-            raise NotImplementedError
+        return loss
+    
+    # def forward(self, mean, logv, step, k, x0, anneal_func):
+    #     loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
 
-        return loss, weight
+    #     weight = 0
+    #     if anneal_func == "logistic":
+    #         weight = float(1/(1+np.exp(-k*(step-x0))))
+    #     elif anneal_func == "":
+    #         weight = min(1, step/x0)
+    #     else:
+    #         raise NotImplementedError
 
-class RRe_loss(nn.Module):
+    #     return loss, weight
+
+class _RRE_LOSS(nn.Module):
     def __init__(self, device):
-        super(RRe_loss, self).__init__()
+        super(_RRE_LOSS, self).__init__()
         self.m_device = device
         # self.m_loss_fun = 
         # self.m_BCE = nn.BCELoss().to(self.m_device)
@@ -76,9 +82,9 @@ class RRe_loss(nn.Module):
         # exit()
         return loss
 
-class ARe_loss(nn.Module):
+class _ARE_LOSS(nn.Module):
     def __init__(self, device):
-        super(ARe_loss, self).__init__()
+        super(_ARE_LOSS, self).__init__()
         self.m_device = device
         self.m_logsoftmax = nn.LogSoftmax(dim=1)
         # self.m_BCE = nn.BCELoss().to(self.m_device)
@@ -123,5 +129,24 @@ def get_bleu(hypotheses, reference):
     
     return 100*bleu(stats)
 
+def get_recall(preds, targets, k=10):
+    
+    batch_size = preds.shape[0]
+    voc_size = preds.shape[1]
 
-# class BLEU()
+    print("batch_size", batch_size)
+    print("voc_size", voc_size)
+
+    idx = bn.argpartition(-preds, k, axis=1)
+    hit = targets[np.arange(batch_size)[:, np.newaxis], idx[:, :k]]
+
+    hit = np.count_nonzero(hit, axis=1)
+    hit = np.array(hit)
+    
+    hit = np.squeeze(hit)
+
+    recall = np.array([min(n, k) for n in np.count_nonzero(targets, axis=1)])
+
+    recall = hit/recall
+
+    return recall

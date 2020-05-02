@@ -8,7 +8,7 @@ import datetime
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-from metric import Reconstruction_loss, KL_loss, RRe_loss, ARe_loss, KL_loss_z
+from metric import _REC_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS
 from model import REVIEWDI
 from inference import INFER
 import random
@@ -39,36 +39,20 @@ class TRAINER(object):
 
         self.m_anneal_func = args.anneal_func
         
-        self.m_Recon_loss_fn = Reconstruction_loss(self.m_device, ignore_index=self.m_pad_idx)
-        self.m_KL_loss_z_fn = KL_loss_z(self.m_device)
-        self.m_KL_loss_s_fn = KL_loss(self.m_device)
-        self.m_RRe_loss_fn = RRe_loss(self.m_device)
-        self.m_ARe_loss_fn = ARe_loss(self.m_device)
+        self.m_rec_loss = _REC_LOSS(self.m_device, ignore_index=self.m_pad_idx)
+        self.m_kl_loss_z = _KL_LOSS_STANDARD(self.m_device)
+        self.m_kl_loss_s = _KL_LOSS_STANDARD(self.m_device)
+        self.m_RRe_loss_fn = _RRE_LOSS(self.m_device)
+        self.m_ARe_loss_fn = _ARE_LOSS(self.m_device)
 
         self.m_train_step = 0
         self.m_valid_step = 0
         self.m_model_path = args.model_path
-        self.m_model_name = "REVIEWDI"
+        self.m_model_file = args.model_file
 
         self.m_train_iteration = 0
         self.m_valid_iteration = 0
-
-    # def saveModel(self, epoch, loss, recall, mrr):
-    #     checkpoint = {
-    #         'model': self.model.state_dict(),
-    #         'args': self.args,
-    #         'epoch': epoch,
-    #         'optim': self.optim,
-    #         'loss': loss,
-    #         'recall': recall,
-    #         'mrr': mrr
-    #     }
-        
-    #     # checkpoint_dir = "../log/"+self.args.model_name+"/"+self.args.checkpoint_dir
-    #     # model_name = os.path.join(self.args.checkpoint_dir, "model_{0:05d}.pt".format(epoch))
-    #     model_name = os.path.join(self.args.checkpoint_dir, "model_best.pt")
-    #     # model_name = os.path.join(self.args.checkpoint_dir, "model_{0:05d}.pt".format(epoch))
-    #     torch.save(checkpoint, model_name)
+        self.m_print_interval = args.print_interval
 
     def f_save_model(self, epoch, network, optimizer):
         checkpoint = {'model':network.state_dict(),
@@ -76,11 +60,11 @@ class TRAINER(object):
             'optimizer': optimizer
         }
 
-        now_time = datetime.datetime.now()
-        time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
+        # now_time = datetime.datetime.now()
+        # time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
 
-        model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
-        torch.save(checkpoint, model_name)
+        # model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
+        torch.save(checkpoint, self.m_model_file)
 
     def f_train(self, train_data, eval_data, network, optimizer, logger_obj):
 
@@ -91,7 +75,7 @@ class TRAINER(object):
         self.m_valid_iteration = 0
 
         for epoch in range(self.m_epochs):
-            print("+"*20)
+            print("++"*20, epoch, "++"*20)
 
             s_time = datetime.datetime.now()
             self.f_train_epoch(train_data, network, optimizer, logger_obj, "train")
@@ -122,28 +106,43 @@ class TRAINER(object):
                 print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_val_loss)
                 last_eval_loss = self.m_mean_val_loss
 
+    def f_get_KL_weight(self, anneal_func="beta"):
+        weight = 0
+        if anneal_func == "beta":
+            weight = 0.1
+        elif anneal_func == "logistic":
+            k = 0.001
+            x0 = 2000
+            weight = float(1/(1+np.exp(-k*(step-x0))))
+        else:
+            raise NotImplementedError
+
+        return weight
+
     def f_train_epoch(self, data, network, optimizer, logger_obj, train_val_flag):
 
         train_loss_list = []
         eval_loss_list = []
 
+        loss_list = []
         NLL_loss_list = []
         KL_loss_s_list = []
         KL_loss_z_list = []
         RRe_loss_list = []
         ARe_loss_list = []
 
-        # (NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+RRe_loss+ARe_loss)
-
-        batch_size = self.m_batch_size
+        # batch_size = self.m_batch_size
+        iteration = 0
+        if train_val_flag == "train":
+            network.train()
+        elif train_val_flag == "val":
+            network.eval()
 
         for input_batch, user_batch, target_batch, ARe_batch, RRe_batch, length_batch in data:
 
             if train_val_flag == "train":
-                network.train()
                 self.m_train_step += 1
             elif train_val_flag == "val":
-                network.eval()
                 # self.m_valid_step += 1
                 eval_flag = random.randint(1,101)
                 if eval_flag != 10:
@@ -158,27 +157,51 @@ class TRAINER(object):
             RRe_batch = RRe_batch.to(self.m_device)
             ARe_batch = ARe_batch.to(self.m_device)
 
-            logp, z_mean_prior, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = network(input_batch, user_batch, length_batch)
+            logits, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = network(input_batch, user_batch, length_batch)
 
+            batch_size = input_batch.size(0)
             ### NLL loss
-            NLL_loss = self.m_Recon_loss_fn(logp, target_batch, length_batch)
+            NLL_loss = self.m_rec_loss(logits, target_batch, length_batch)
             NLL_loss = NLL_loss/batch_size
 
             ### KL loss
-            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean_prior, z_mean, z_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
+            KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
+            KL_weight_z = self.f_get_KL_weight()
             KL_loss_z = KL_loss_z/batch_size
 
-            KL_loss_s, KL_weight_s = self.m_KL_loss_s_fn(s_mean, s_logv, self.m_train_step, self.m_k, self.m_x0, self.m_anneal_func)
+            KL_loss_s = self.m_kl_loss_s(s_mean, s_logv)
+            KL_weight_s = self.f_get_KL_weight()
             KL_loss_s = KL_loss_s/batch_size
 
             ### RRe loss
             RRe_loss = self.m_RRe_loss_fn(RRe_pred, RRe_batch)
+            RRe_loss = RRe_loss/batch_size
             
             ### ARe loss
             ARe_loss = self.m_ARe_loss_fn(ARe_pred, ARe_batch)
-            
-            loss = (NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+RRe_loss+ARe_loss)
+            ARe_loss = ARe_loss/batch_size
 
+            # alpha_r = 0.00001
+            # alpha_a = 0.1
+
+            # alpha_r = 0.1
+            # alpha_a = 0.00001
+
+            # alpha_r = 0.00001
+            # alpha_a = 0.00001
+
+            alpha_r = 0.0
+            alpha_a = 0.1
+
+            alpha_0 = 0.0
+
+            # loss = (KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+RRe_loss+ARe_loss)
+
+            # loss = NLL_loss+KL_weight_z*KL_loss_z
+            # loss = NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z
+            loss = (alpha_0*NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+alpha_r*RRe_loss+alpha_a*ARe_loss)
+
+            # loss = (NLL_loss+KL_weight_s*KL_loss_s+KL_weight_z*KL_loss_z+alpha_r*RRe_loss)
             # print("reconstruction loss:%.4f"%NLL_loss.item(), "\t KL loss z:%.4f"%KL_loss_z.item(), "\t KL loss s%.4f"%KL_loss_s.item(), "\tRRe loss:%.4f"%RRe_loss.item(), "\t ARe loss:%.4f"%ARe_loss.item())
             
             if train_val_flag == "train":
@@ -209,17 +232,24 @@ class TRAINER(object):
                 eval_loss_list.append(loss.item())
                 self.m_valid_iteration += 1
 
+            loss_list.append(loss.item())
             NLL_loss_list.append(NLL_loss.item())
             KL_loss_z_list.append(KL_loss_z.item())
             KL_loss_s_list.append(KL_loss_s.item())
             RRe_loss_list.append(RRe_loss.item())
             ARe_loss_list.append(ARe_loss.item())
-        
-        print("avg nll loss:%.4f"%np.mean(NLL_loss_list), end=', ')
-        print("avg kl loss z:%.4f"%np.mean(KL_loss_z_list), end=', ')
-        print("avg kl loss s:%.4f"% np.mean(KL_loss_s_list), end=', ')
-        print("RRe loss:%.4f"% np.mean(RRe_loss_list), end=', ')
-        print("ARe loss:%.4f"% np.mean(ARe_loss_list))
+
+            iteration += 1
+            if iteration % self.m_print_interval == 0:
+                logger_obj.f_add_output2IO("%04d, Loss %9.4f, NLL-Loss %9.4f, KL-Z-Loss %9.4f, KL-S_Loss %.4f, KL-Weight_z %.4f, KL-Weight_s %.4f, RRe_loss %.4f ARe_loss %.4f"
+                    %(iteration, np.mean(loss_list), np.mean(NLL_loss_list), np.mean(KL_loss_z_list), np.mean(KL_loss_s_list), KL_weight_z, KL_weight_s, np.mean(RRe_loss_list), np.mean(ARe_loss_list)))
+
+                loss_list = []
+                NLL_loss_list = []
+                KL_loss_s_list = []
+                KL_loss_z_list = []
+                RRe_loss_list = []
+                ARe_loss_list = []
 
         if train_val_flag == "train":
             self.m_mean_train_loss = np.mean(train_loss_list)

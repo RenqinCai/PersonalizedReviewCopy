@@ -19,13 +19,13 @@ import pickle
 import string
 import datetime
 from collections import Counter 
-
+from scipy import sparse
 
 class _Data():
     def __init__(self):
         print("data")
 
-    def _create_data(self, args):
+    def f_create_data(self, args):
         self.m_min_occ = args.min_occ
         self.m_max_line = 1e8
 
@@ -36,7 +36,7 @@ class _Data():
 
         self.m_vocab_file = self.m_data_name+"_vocab.json"
         ### to save new generated data
-        self.m_data_file = "tokenized_"+self.m_data_name+".pickle"
+        self.m_data_file = "tokenized_"+self.m_data_name+"_pro.pickle"
 
         data = pd.read_pickle(self.m_raw_data_path)
         train_df = data["train"]
@@ -62,7 +62,7 @@ class _Data():
         user_corpus = defaultdict(dict)
         user2uid = defaultdict()
 
-        stop_word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in stopwords.words()]
+        stop_word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in stopwords.words('english')]
         punc_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in string.punctuation]
 
         print("loading train reviews")
@@ -220,7 +220,7 @@ class _Data():
             data = json.dumps(vocab, ensure_ascii=False)
             vocab_file.write(data.encode('utf8', 'replace'))
 
-    def _create_vocab(self, vocab_obj, train_reviews):
+    def f_create_vocab(self, vocab_obj, train_reviews):
         tokenizer = TweetTokenizer(preserve_case=False)
 
         w2c = OrderedCounter()
@@ -239,14 +239,6 @@ class _Data():
         line_i = 0
         for review in train_reviews:
             words = tokenizer.tokenize(review)
-            # word_num_review = 0
-            # for w in words:
-            #     if w in stopwords.words():
-            #         continue
-            #     word_num_review += 1
-            # if word_num_review < 5:
-            #     continue
-
             w2c.update(words)
 
             if line_i > max_line:
@@ -264,7 +256,7 @@ class _Data():
         print("len(i2w)", len(i2w))
         vocab_obj.f_set_vocab(w2i, i2w)
 
-    def _load_data(self, args):
+    def f_load_data(self, args):
         self.m_data_name = args.data_name
         self.m_vocab_file = self.m_data_name+"_vocab.json"
 
@@ -281,12 +273,13 @@ class _Data():
         vocab_obj = _Vocab()
         vocab_obj.f_set_vocab(vocab['w2i'], vocab['i2w'])
         
-        print("vocab size", vocab_obj.m_vocab_size)
+        vocab_obj.f_set_user_num(user_num)
+        # print("vocab size", vocab_obj.m_vocab_size)
 
         train_data = Amazon(args, vocab_obj, review_corpus['train'], item_corpus)
         valid_data = Amazon(args, vocab_obj, review_corpus['valid'], item_corpus)
 
-        return train_data, valid_data, vocab_obj, user_num
+        return train_data, valid_data, vocab_obj
 
 class _Vocab():
     def __init__(self):
@@ -294,7 +287,7 @@ class _Vocab():
         self.m_i2w = None
         self.m_vocab_size = 0
         self.m_user2uid = None
-        # self.m_user_size = 0
+        self.m_user_size = 0
     
     def f_set_vocab(self, w2i, i2w):
         self.m_w2i = w2i
@@ -303,7 +296,15 @@ class _Vocab():
 
     def f_set_user(self, user2uid):
         self.m_user2uid = user2uid
-    
+        self.m_user_size = len(self.m_user2uid)
+
+    def f_set_user_num(self, user_num):
+        self.m_user_size = user_num
+
+    @property
+    def user_size(self):
+        return self.m_user_size
+
     @property
     def vocab_size(self):
         return len(self.m_w2i)
@@ -340,6 +341,7 @@ class Amazon(Dataset):
         self.m_eos_id = vocab_obj.eos_idx
         self.m_pad_id = vocab_obj.pad_idx
         self.m_vocab_size = vocab_obj.vocab_size
+        self.m_vocab = vocab_obj
     
         self.m_sample_num = len(review_corpus)
         print("sample num", self.m_sample_num)
@@ -356,6 +358,8 @@ class Amazon(Dataset):
         self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
+        # self.m_RRe_batch_list = [sparse.csr_matrix((self.m_batch_size, self.m_vocab_size)) for i in range(self.m_batch_num)]
+        # self.m_ARe_batch_list = [sparse.csr_matrix((self.m_batch_size, self.m_vocab_size)) for i in range(self.m_batch_num)]
 
         for sample_index in range(self.m_sample_num):
             review_obj = review_corpus[sample_index]
@@ -371,6 +375,7 @@ class Amazon(Dataset):
 
         for i, sample_index in enumerate(sorted_index_len_list):
             batch_index = int(i/self.m_batch_size)
+            residual_index = i-batch_index*self.m_batch_size
             if batch_index >= self.m_batch_num:
                 break
             
@@ -386,6 +391,12 @@ class Amazon(Dataset):
             self.m_input_batch_list[batch_index].append(input_review)
             self.m_target_batch_list[batch_index].append(target_review)
 
+            # RRe_review = review_obj.m_res_review_words
+            # tmp = self.m_RRe_batch_list[batch_index].tolil()
+            # col_index = np.array(list(RRe_review.keys()))
+            # tmp[residual_index, col_index] = np.array(list(RRe_review.values()))
+            # tmp = tmp.tocsr()
+
             RRe_review = review_obj.m_res_review_words
             self.m_RRe_batch_list[batch_index].append(RRe_review)
 
@@ -394,6 +405,13 @@ class Amazon(Dataset):
             # RRe_val = list(RRe_review.values())
             # RRe_i_iter[RRe_index] = RRe_val
             # self.m_RRe_batch_list[batch_index].append(RRe_i_iter)
+
+            # item_id = review_obj.m_item_id
+            # ARe_item = item_corpus[item_id]
+            # tmp = self.m_ARe_batch_list[batch_index].tolil()
+            # col_index = np.array(list(ARe_item.keys()))
+            # tmp[residual_index, col_index] = np.array(list(ARe_item.values()))
+            # tmp = tmp.tocsr()
 
             item_id = review_obj.m_item_id
             ARe_item = item_corpus[item_id]
@@ -408,17 +426,22 @@ class Amazon(Dataset):
             user_id = int(review_obj.m_user_id)
             self.m_user_batch_list[batch_index].append(user_id)
 
+        # for batch_index in range(self.m_batch_num):
+        #     self.m_RRe_batch_list[batch_index]
+
         print("loaded data")
 
     def __iter__(self):
         print("shuffling")
         
-        temp = list(zip(self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list))
-        random.shuffle(temp)
+        batch_index_list = np.random.permutation(self.m_batch_num)
+        # temp = list(zip(self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list))
+        # random.shuffle(temp)
         
-        self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list = zip(*temp)
+        # self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list = zip(*temp)
 
-        for batch_index in range(self.m_batch_num):
+        for batch_i in range(self.m_batch_num):
+            batch_index = batch_index_list[batch_i]
             # s_time = datetime.datetime.now()
 
             length_batch = self.m_length_batch_list[batch_index]
@@ -446,13 +469,24 @@ class Amazon(Dataset):
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
 
+                # print("RRe", RRe_batch[sent_i])
+
+                # sorted_RRe_batch_i = sorted(RRe_batch[sent_i].items(), key=lambda item: -item[1])
+
+                # for word_idx, word_prob in sorted_RRe_batch_i:
+                #     word = self.m_vocab.m_i2w[str(word_idx)]
+                #     # word_prob = RRe_batch[sent_i][word_idx]
+                #     print(word, ":%.4f"%word_prob, end=", ")
+                # print("\n")
                 RRe_i_iter = np.zeros(self.m_vocab_size)
                 RRe_index = list(RRe_batch[sent_i].keys())
                 RRe_val = list(RRe_batch[sent_i].values())
                 RRe_i_iter[RRe_index] = RRe_val
+
                 # print(RRe_index, RRe_val)
                 # print(RRe_i_iter[RRe_index])
 
+                # print("ARe", ARe_batch[sent_i])
                 ARe_i_iter = np.zeros(self.m_vocab_size)
                 ARe_index = list(ARe_batch[sent_i].keys())
                 ARe_val = list(ARe_batch[sent_i].values())
@@ -472,8 +506,9 @@ class Amazon(Dataset):
                 # print("yield batch data duration", e_time-ss_time)
 
             user_batch_iter = user_batch
-            # RRe_batch_iter = RRe_batch
-            # ARe_batch_iter = ARe_batch
+
+            # RRe_batch_iter = RRe_batch.toarray()
+            # ARe_batch_iter = ARe_batch.toarray()
 
             # print(sum(RRe_batch_iter[0]))
             # ts_time = datetime.datetime.now()
@@ -500,7 +535,7 @@ class Amazon(Dataset):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--data_dir', type=str, default='data')
+    parser.add_argument('--data_dir', type=str, default='../data/amazon/')
     parser.add_argument('-dn', '--data_name', type=str, default='amazon')
     parser.add_argument('--create_data', action='store_true')
     parser.add_argument('-eb', '--embedding_size', type=int, default=300)
