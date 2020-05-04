@@ -34,9 +34,11 @@ class _Data():
         self.m_raw_data_file = args.data_file
         self.m_raw_data_path = os.path.join(self.m_data_dir, self.m_raw_data_file)
 
+        self.m_output_file = args.output_file
         self.m_vocab_file = self.m_data_name+"_vocab.json"
         ### to save new generated data
-        self.m_data_file = "tokenized_"+self.m_data_name+"_pro.pickle"
+        self.m_data_file = "tokenized_"+self.m_data_name+"_"+self.m_output_file
+        # self.m_data_file = "tokenized_"+self.m_data_name+"_pro_v2.pickle"
 
         data = pd.read_pickle(self.m_raw_data_path)
         train_df = data["train"]
@@ -54,7 +56,7 @@ class _Data():
 
         vocab_obj = _Vocab()
 
-        self._create_vocab(vocab_obj, train_reviews)
+        self.f_create_vocab(vocab_obj, train_reviews)
         # i = 0
 
         review_corpus = defaultdict(dict)
@@ -135,8 +137,11 @@ class _Data():
 
         user_num = len(user_corpus)
         vocab_obj.f_set_user(user2uid)
+
+        # return item_corpus, review_corpus
         # vocab_obj.f_set_user_size(user_num)
 
+    # def f_temp(self, item_corpus, review_corpus):
         save_item_corpus = {}
         
         print("item num", len(item_corpus))
@@ -156,10 +161,15 @@ class _Data():
                 review_obj = review_corpus["train"][review_id]
 
                 item_obj.f_get_RRe(review_obj)
+                item_obj.f_get_ARe(review_obj)
 
-            if item_id not in save_item_corpus:
-                save_item_corpus[item_id] = item_obj.m_avg_review_words
-
+                # print("--"*15, "AVG", '--'*15)
+                # print(review_obj.m_avg_review_words)
+                # print("--"*15, "RES", '--'*15)
+                # print(review_obj.m_res_review_words)
+            # if item_id not in save_item_corpus:
+            #     save_item_corpus[item_id] = item_obj.m_avg_review_words
+            # exit()
         print("loading valid reviews")
         for index, review in enumerate(valid_reviews):
 
@@ -172,7 +182,7 @@ class _Data():
             if user_id not in user2uid:
                 continue
             
-            if item_id not in save_item_corpus:
+            if item_id not in item_corpus:
                 continue
             
             words = tokenizer.tokenize(review)
@@ -204,6 +214,7 @@ class _Data():
             item_obj = item_corpus[item_id]
             # print(len(item_corpus))
             item_obj.f_get_RRe(review_obj)
+            item_obj.f_get_ARe(review_obj)
 
         print("load validate review num", len(review_corpus["valid"]))
 
@@ -358,8 +369,7 @@ class Amazon(Dataset):
         self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
-        # self.m_RRe_batch_list = [sparse.csr_matrix((self.m_batch_size, self.m_vocab_size)) for i in range(self.m_batch_num)]
-        # self.m_ARe_batch_list = [sparse.csr_matrix((self.m_batch_size, self.m_vocab_size)) for i in range(self.m_batch_num)]
+        
 
         for sample_index in range(self.m_sample_num):
             review_obj = review_corpus[sample_index]
@@ -394,8 +404,6 @@ class Amazon(Dataset):
             # RRe_review = review_obj.m_res_review_words
             # tmp = self.m_RRe_batch_list[batch_index].tolil()
             # col_index = np.array(list(RRe_review.keys()))
-            # tmp[residual_index, col_index] = np.array(list(RRe_review.values()))
-            # tmp = tmp.tocsr()
 
             RRe_review = review_obj.m_res_review_words
             self.m_RRe_batch_list[batch_index].append(RRe_review)
@@ -408,14 +416,8 @@ class Amazon(Dataset):
 
             # item_id = review_obj.m_item_id
             # ARe_item = item_corpus[item_id]
-            # tmp = self.m_ARe_batch_list[batch_index].tolil()
-            # col_index = np.array(list(ARe_item.keys()))
-            # tmp[residual_index, col_index] = np.array(list(ARe_item.values()))
-            # tmp = tmp.tocsr()
-
-            item_id = review_obj.m_item_id
-            ARe_item = item_corpus[item_id]
-            self.m_ARe_batch_list[batch_index].append(ARe_item)
+            ARe_review = review_obj.m_avg_review_words
+            self.m_ARe_batch_list[batch_index].append(ARe_review)
 
             # ARe_i_iter = np.zeros(self.m_vocab_size)
             # ARe_index = list(ARe_item.keys())
@@ -435,11 +437,7 @@ class Amazon(Dataset):
         print("shuffling")
         
         batch_index_list = np.random.permutation(self.m_batch_num)
-        # temp = list(zip(self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list))
-        # random.shuffle(temp)
         
-        # self.m_length_batch_list, self.m_input_batch_list, self.m_user_batch_list, self.m_target_batch_list, self.m_RRe_batch_list, self.m_ARe_batch_list = zip(*temp)
-
         for batch_i in range(self.m_batch_num):
             batch_index = batch_index_list[batch_i]
             # s_time = datetime.datetime.now()
@@ -469,24 +467,11 @@ class Amazon(Dataset):
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
 
-                # print("RRe", RRe_batch[sent_i])
-
-                # sorted_RRe_batch_i = sorted(RRe_batch[sent_i].items(), key=lambda item: -item[1])
-
-                # for word_idx, word_prob in sorted_RRe_batch_i:
-                #     word = self.m_vocab.m_i2w[str(word_idx)]
-                #     # word_prob = RRe_batch[sent_i][word_idx]
-                #     print(word, ":%.4f"%word_prob, end=", ")
-                # print("\n")
                 RRe_i_iter = np.zeros(self.m_vocab_size)
                 RRe_index = list(RRe_batch[sent_i].keys())
                 RRe_val = list(RRe_batch[sent_i].values())
                 RRe_i_iter[RRe_index] = RRe_val
 
-                # print(RRe_index, RRe_val)
-                # print(RRe_i_iter[RRe_index])
-
-                # print("ARe", ARe_batch[sent_i])
                 ARe_i_iter = np.zeros(self.m_vocab_size)
                 ARe_index = list(ARe_batch[sent_i].keys())
                 ARe_val = list(ARe_batch[sent_i].values())
@@ -523,14 +508,9 @@ class Amazon(Dataset):
             RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
             ARe_batch_iter_tensor = torch.from_numpy(np.array(ARe_batch_iter))
 
-            # print(RRe_batch_iter_tensor.size(), "RRe_batch_iter_tensor", RRe_batch_iter_tensor.sum(dim=1))
-
-            # e_time = datetime.datetime.now()
-            # print("tensor data duration", e_time-ts_time)
-            # print("yield data duration", e_time-s_time)
-
             yield input_batch_iter_tensor, user_batch_iter_tensor, target_batch_iter_tensor, ARe_batch_iter_tensor, RRe_batch_iter_tensor, length_batch_tensor
 
+### python data.py --data_dir "../data/amazon/clothing" --data_file "processed_amazon_clothing_shoes_jewelry.pickle" --output_file "pro_v2.pickle"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -538,14 +518,10 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', type=str, default='../data/amazon/')
     parser.add_argument('-dn', '--data_name', type=str, default='amazon')
     parser.add_argument('--create_data', action='store_true')
-    parser.add_argument('-eb', '--embedding_size', type=int, default=300)
     parser.add_argument('--max_seq_length', type=int, default=100)
     parser.add_argument('--min_occ', type=int, default=3)
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--lr', type=float, default=0.001)
-    parser.add_argument('--rnn', type=str, default='GRU')
-    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--data_file', type=str, default="raw_data.pickle")
+    parser.add_argument('--output_file', type=str, default=".pickle")
 
     args = parser.parse_args()
 
@@ -553,4 +529,4 @@ if __name__ == "__main__":
     # args.anneal_function = args.anneal_function.lower()
 
     data_obj = _Data()
-    data_obj._create_data(args)
+    data_obj.f_create_data(args)

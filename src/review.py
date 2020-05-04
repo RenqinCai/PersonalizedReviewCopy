@@ -6,6 +6,7 @@ class _Review():
         self.m_review_id = -1
         self.m_review_words = []
         self.m_res_review_words = {}
+        self.m_avg_review_words = {}
         self.m_user_id = -1
         self.m_item_id = -1
         self.m_word_tf_map = {}

@@ -13,7 +13,8 @@ class _Item():
         self.m_avg_review_words = {}
         self.m_avg_len = 0
         self.m_doc_num = 0
-        self.m_total_doc_len = 0 
+        self.m_total_doc_len = 0
+        self.m_tau = 1.0
 
     def f_get_item_lm(self):
 
@@ -22,26 +23,14 @@ class _Item():
         
         self.m_avg_len = self.m_total_doc_len/D
         
-        for word in self.m_word_tf_map:
-            word_tf = self.m_word_tf_map[word]
+        # for word in self.m_word_tf_map:
+        #     word_tf = self.m_word_tf_map[word]
 
-            word_lm = word_tf/self.m_total_doc_len
+        #     word_lm = word_tf/self.m_total_doc_len
             
-            self.m_avg_review_words[word] = word_lm
+        #     self.m_avg_review_words[word] = word_lm
 
     def f_get_RRe(self, review_obj, k1 = 1.5, b = 0.75):
-        # for review_id in self.m_review_id_list:
-        #     review_obj = review_corpus[review_id]
-
-        # word_tf_review_map = {}
-        # for word in review_obj.m_review_words:
-        #     if word in stop_words:
-        #         continue
-
-        #     if word not in word_tf_review_map:
-        #         word_tf_review_map[word] = 0.0
-            
-        #     word_tf_review_map[word] += 1.0
         
         total_word_BM25 = 0.0
 
@@ -58,20 +47,61 @@ class _Item():
 
             word_BM25 *= np.log((self.m_doc_num-word_df+0.5)/(word_df+0.5))
 
-            # word_tf_review_map[word] = np.exp(word_BM25)
-            # total_word_BM25 += word_tf_review_map[word]
-
             review_obj.m_res_review_words[word] = np.exp(word_BM25)
             total_word_BM25 += review_obj.m_res_review_words[word]
 
+        sum_prob = 0
+        epsilon = 1e-100
+
         for word in review_obj.m_res_review_words:
             word_BM25 = review_obj.m_res_review_words[word]
-            review_obj.m_res_review_words[word] = word_BM25/total_word_BM25
+            # review_obj.m_res_review_words[word] = word_BM25/total_word_BM25
 
-        # for word in word_tf_review_map:
-        #     word_BM25 = word_tf_review_map[word]
-        #     word_tf_review_map[word] = word_BM25/total_word_BM25
+            word_prob = word_BM25/total_word_BM25
+            # word_prob = np.exp((np.log(word_prob)+epsilon)/self.m_tau)
+            # sum_prob += word_prob
+
+            review_obj.m_res_review_words[word] = word_prob
+
+        # for word in review_obj.m_res_review_words:
+        #     word_prob = review_obj.m_res_review_words[word]/sum_prob
+        #     review_obj.m_res_review_words[word] = word_prob
+
+    def f_get_ARe(self, review_obj):
+
+        max_word_global_tf = 0
+        word_global_tf_list = []
+        for word in review_obj.m_word_tf_map:
+            word_global_tf = self.m_word_tf_map[word]
+
+            if word_global_tf > max_word_global_tf:
+                max_word_global_tf = word_global_tf
+            word_global_tf_list.append(word_global_tf)
+
+        word_global_tf_list = np.array(word_global_tf_list)
+        word_global_tf_list -= max_word_global_tf
+
+        norm = np.sum(np.exp(word_global_tf_list))
+
+        sum_prob = 0
+        epsilon = 1e-100
+        for word in review_obj.m_word_tf_map:
+            word_global_tf = self.m_word_tf_map[word]
+            
+            word_prob = np.exp((word_global_tf - max_word_global_tf))
+            word_prob /= norm
+
+            # print(word, ":", word_prob, ":", np.log(word_prob), end=", ")
+
+            # word_prob = np.exp((np.log(word_prob)+epsilon)/self.m_tau)
+            # sum_prob += word_prob
+
+            review_obj.m_avg_review_words[word] = word_prob
         
+        # for word in review_obj.m_avg_review_words:
+        #     word_prob = review_obj.m_avg_review_words[word]/sum_prob
+        #     review_obj.m_avg_review_words[word] = word_prob
+
     def f_set_item_id(self, item_id):
         self.m_item_id = item_id
 
