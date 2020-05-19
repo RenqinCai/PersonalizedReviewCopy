@@ -38,7 +38,7 @@ class INFER(object):
 
         self.m_network = network
 
-    def f_inference(self, eval_data):
+    def f_inference(self, train_data, eval_data):
         self.m_mean_loss = 0
         # for epoch_i in range(self.m_epoch):
         # batch_size = args.batch_size
@@ -50,21 +50,30 @@ class INFER(object):
         bleu_score_list = []
 
         with torch.no_grad():
-            for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
-
+            for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
                 if batch_index > 0:
                     break
 
                 batch_index += 1
 
-                input_batch = input_batch.to(self.m_device)
-                user_batch = user_batch.to(self.m_device)
-                length_batch = length_batch.to(self.m_device)
-                target_batch = target_batch.to(self.m_device)
-                RRe_batch = RRe_batch.to(self.m_device)
-                ARe_batch = ARe_batch.to(self.m_device)
+                input_batch_gpu = input_batch.to(self.m_device)
+                input_length_batch_gpu = input_length_batch.to(self.m_device)
 
-                logp, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
+                user_batch_gpu = user_batch.to(self.m_device)
+                item_batch_gpu = item_batch.to(self.m_device)
+
+                target_batch_gpu = target_batch.to(self.m_device)
+                target_length_batch_gpu = target_length_batch.to(self.m_device)
+                # RRe_batch = RRe_batch.to(self.m_device)
+                # ARe_batch = ARe_batch.to(self.m_device)
+
+                input_de_batch_gpu = target_batch_gpu[:, :-1]
+                input_de_length_batch_gpu = target_length_batch_gpu-1
+
+                logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, random_flag)       
+
+                print('random_flag', random_flag)
+
                 # print("*"*10, "encode -->  decode <--", "*"*10)
                 
                 print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
@@ -72,8 +81,18 @@ class INFER(object):
                 # mean = mean.unsqueeze(0)
                 # print("size", z_mean.size(), s_mean.size())
                 # mean = torch.cat([z_mean, s_mean], dim=1)
-                mean = torch.cat([z_mean, s_mean], dim=1)
-                max_seq_len = max(length_batch)
+                # mean = torch.cat([z_mean, s_mean], dim=1)
+
+                if random_flag == 0:
+                    mean = z_mean+s_mean+l_mean
+                elif random_flag == 1:
+                    mean = z_mean+s_mean
+                elif random_flag == 2:
+                    mean = s_mean+l_mean
+                elif random_flag == 3:
+                    mean = z_mean+l_mean
+                
+                max_seq_len = max(target_length_batch-1)
                 samples, z = self.f_decode_text(mean, max_seq_len)
 
                 # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
@@ -82,8 +101,11 @@ class INFER(object):
                 # print("batch bleu score", bleu_score_batch)
 
                 # bleu_score_list.append(bleu_score_batch)
-
+                print("<-"*10)
                 print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+
+                print("<-"*10)
+                print("target", "<-"*10, *idx2word(target_batch[:, 1:,], i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
         # mean_bleu_score = np.mean(bleu_score_list)
         # print("bleu score", mean_bleu_score)

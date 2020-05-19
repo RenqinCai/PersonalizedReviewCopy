@@ -134,7 +134,7 @@ class TRAINER(object):
         elif train_val_flag == "val":
             network.eval()
 
-        for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch in data:
+        for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in data:
 
             if train_val_flag == "train":
                 self.m_train_step += 1
@@ -155,14 +155,14 @@ class TRAINER(object):
             target_batch = target_batch.to(self.m_device)
             target_length_batch = target_length_batch.to(self.m_device)
 
-            input_de_batch = target_batch
-            input_de_length_batch = target_length_batch
+            input_de_batch = target_batch[:, :-1]
+            input_de_length_batch = target_length_batch-1
 
             logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = network(input_batch, input_length_batch, input_de_batch, input_de_length_batch, user_batch, random_flag)
 
             batch_size = input_batch.size(0)
             ### NLL loss
-            NLL_loss = self.m_rec_loss(logits, target_batch, target_length_batch)
+            NLL_loss = self.m_rec_loss(logits, target_batch[:, 1:], target_length_batch-1)
             NLL_loss = NLL_loss/batch_size
 
             loss = NLL_loss
@@ -180,8 +180,9 @@ class TRAINER(object):
                 KL_weight_l = self.f_get_KL_weight()
                 KL_loss_l = KL_loss_l/batch_size
 
+                # KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s
                 KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s+KL_weight_l*KL_loss_l
-                loss = loss + KL_loss
+                # loss = loss + KL_loss
             elif random_flag == 1:
                 KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
                 KL_weight_z = self.f_get_KL_weight()
@@ -254,6 +255,7 @@ class TRAINER(object):
 
             iteration += 1
             if iteration % self.m_print_interval == 0:
+                print("random_flag", random_flag)
                 logger_obj.f_add_output2IO("%04d, Loss %9.4f, NLL-Loss %9.4f, KL Loss %.4f"
                     %(iteration, np.mean(loss_list), np.mean(NLL_loss_list), np.mean(KL_loss_list)))
 

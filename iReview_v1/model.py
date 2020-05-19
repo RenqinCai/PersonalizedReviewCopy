@@ -106,6 +106,7 @@ class REVIEWDI(nn.Module):
             l_std = torch.exp(0.5*l_logv)
             l = torch.randn_like(l_std)*l_std + l_mean
 
+            # variational_hidden = z+s
             variational_hidden = z+s+l
             # variational_hidden = torch.cat([z, s, l], dim=1)
         elif random_flag== 1: 

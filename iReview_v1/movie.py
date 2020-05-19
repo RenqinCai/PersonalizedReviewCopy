@@ -94,7 +94,7 @@ class _MOVIE(Dataset):
 
             input_review = word_ids_review[:self.m_max_seq_len] 
             input_review = [self.m_sos_id] + input_review
-            target_review = word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_review = [self.m_sos_id] + word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
 
             self.m_length_batch_list[batch_index].append(length_list[sample_index])
 
@@ -102,15 +102,15 @@ class _MOVIE(Dataset):
             self.m_target_batch_list[batch_index].append(target_review)
 
             user_p_review = review_obj.m_user_perturb_words
-            target_user_p_review = user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_user_p_review = [self.m_sos_id] + user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_user_p_target_batch_list[batch_index].append(target_user_p_review)
 
             item_p_review = review_obj.m_item_perturb_words
-            target_item_p_review = item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_item_p_review = [self.m_sos_id] + item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_item_p_target_batch_list[batch_index].append(target_item_p_review)
 
             local_p_review = review_obj.m_local_perturb_words
-            target_local_p_review = local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_local_p_review = [self.m_sos_id] + local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_local_p_target_batch_list[batch_index].append(target_local_p_review)
 
             user_id = int(review_obj.m_user_id)
@@ -142,7 +142,7 @@ class _MOVIE(Dataset):
             # random_flag = random.randint(0, 2)
             # random_flag = random.randint(0, 3)
             # random_flag = random.choice(flag_list)
-            random_flag = 0
+            random_flag = 3
  
             input_batch = self.m_input_batch_list[batch_index]
             input_length_batch = self.m_length_batch_list[batch_index]
@@ -199,7 +199,7 @@ class _MOVIE(Dataset):
             target_length_iter_tensor = torch.from_numpy(np.array(target_length_iter)).long()
             target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
             
-            yield input_length_iter_tensor, input_iter_tensor, user_iter_tensor, item_iter_tensor, target_length_iter_tensor, target_iter_tensor, random_flag
+            yield input_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_length_iter_tensor, random_flag
 
 class _MOVIE_TEST(Dataset):
     def __init__(self, args, vocab_obj, review_corpus):
@@ -234,7 +234,11 @@ class _MOVIE_TEST(Dataset):
         self.m_user_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_item_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
-        
+
+        self.m_user_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_item_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_local_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+
         self.m_user2uid = {}
         self.m_item2iid = {}
 
@@ -271,12 +275,24 @@ class _MOVIE_TEST(Dataset):
 
             input_review = word_ids_review[:self.m_max_seq_len] 
             input_review = [self.m_sos_id] + input_review
-            target_review = word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_review = [self.m_sos_id] + word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
 
             self.m_length_batch_list[batch_index].append(length_list[sample_index])
 
             self.m_input_batch_list[batch_index].append(input_review)
             self.m_target_batch_list[batch_index].append(target_review)
+
+            user_p_review = review_obj.m_user_perturb_words
+            target_user_p_review = [self.m_sos_id] + user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_user_p_target_batch_list[batch_index].append(target_user_p_review)
+
+            item_p_review = review_obj.m_item_perturb_words
+            target_item_p_review = [self.m_sos_id] + item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_item_p_target_batch_list[batch_index].append(target_item_p_review)
+
+            local_p_review = review_obj.m_local_perturb_words
+            target_local_p_review = [self.m_sos_id] + local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_local_p_target_batch_list[batch_index].append(target_local_p_review)
 
             user_id = int(review_obj.m_user_id)
             uid = self.m_user2uid[user_id]
@@ -301,40 +317,64 @@ class _MOVIE_TEST(Dataset):
             batch_index = batch_index_list[batch_i]
             # s_time = datetime.datetime.now()
 
-            length_batch = self.m_length_batch_list[batch_index]
+            # random_flag = random.randint(0, 2)
+            # random_flag = random.randint(0, 3)
+            # random_flag = random.choice(flag_list)
+            random_flag = 3
+ 
             input_batch = self.m_input_batch_list[batch_index]
+            input_length_batch = self.m_length_batch_list[batch_index]
+
             user_batch = self.m_user_batch_list[batch_index]
             item_batch = self.m_item_batch_list[batch_index]
-            target_batch = self.m_target_batch_list[batch_index]
 
+            target_batch = None
+            if random_flag == 0:
+                target_batch = self.m_target_batch_list[batch_index]
+            elif random_flag == 1:
+                target_batch = self.m_local_p_target_batch_list[batch_index]
+            elif random_flag == 2:
+                target_batch = self.m_user_p_target_batch_list[batch_index]
+            elif random_flag == 3:
+                target_batch = self.m_item_p_target_batch_list[batch_index]
+            
             input_iter = []
+            input_length_iter = input_length_batch
             user_iter = []
             item_iter = []
             target_iter = []
+            target_length_iter = []
 
-            max_length_batch = max(length_batch)
-            # print("max_length_batch", max_length_batch)
+            for target_i in target_batch:
+                target_length_iter.append(len(target_i))
+
+            max_input_length_iter = max(input_length_iter)
+            max_target_length_iter = max(target_length_iter)
 
             for sent_i, _ in enumerate(input_batch):
-                # ss_time = datetime.datetime.now()
 
-                length_i = length_batch[sent_i]
-                
+                input_length_i = input_length_iter[sent_i]
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
-                input_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
+
+                input_i_iter.extend([self.m_pad_id]*(max_input_length_iter-input_length_i))
                 input_iter.append(input_i_iter)
 
+                target_length_i = target_length_iter[sent_i]
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
-                target_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-                target_iter.append(target_i_iter)
 
+                target_i_iter.extend([self.m_pad_id]*(max_target_length_iter-target_length_i))
+                target_iter.append(target_i_iter)
+                
             user_iter = user_batch
             item_iter = item_batch
 
-            length_iter_tensor = torch.from_numpy(np.array(length_batch)).long()
+            input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
             input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
+
             user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
             item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
+
+            target_length_iter_tensor = torch.from_numpy(np.array(target_length_iter)).long()
             target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
             
-            yield length_iter_tensor, input_iter_tensor, user_iter_tensor, item_iter_tensor, length_iter_tensor, target_iter_tensor, random_flag
+            yield input_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_length_iter_tensor, random_flag

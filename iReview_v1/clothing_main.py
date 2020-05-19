@@ -9,16 +9,18 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from train import TRAINER
 
-from perturb_data import _Data
-from movie import _MOVIE, _MOVIE_TEST
+from perturb_data_clothing import _Data
+# from movie import _MOVIE, _MOVIE_TEST
+from clothing import _CLOTHING, _CLOTHING_TEST
 from model import REVIEWDI
 import datetime
-# from inference import INFER
-from inference_new import INFER
+from inference import INFER
+# from inference_new import INFER
 from optimizer import Optimizer
 from logger import Logger
 import random
-from eval_new import _EVAL
+from eval import _EVAL
+# from eval_new import _EVAL
 
 def set_seed(seed):
     random.seed(seed)
@@ -127,12 +129,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--model_file', type=str, default="model_best.pt")
     parser.add_argument('--model_name', type=str, default="REVIEWDI_V1")
-
+    parser.add_argument('--hcdmg1', action="store_true", default=False)
     parser.add_argument('--train', action="store_true", default=False)
     parser.add_argument('--eval', action="store_true", default=False)
     parser.add_argument('--test', action="store_true", default=False)
     parser.add_argument('--print_interval', type=int, default=400)
-    
+    parser.add_argument('--random_flag', type=int, default=0)
+
     args = parser.parse_args()
 
     # args.rnn_type = args.rnn_type.lower()

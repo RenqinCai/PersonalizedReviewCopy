@@ -36,7 +36,7 @@ class _EVAL(object):
 
         self.m_network = network
 
-    def f_eval(self, eval_data):
+    def f_eval(self, train_data, eval_data):
         self.m_mean_loss = 0
         # for epoch_i in range(self.m_epoch):
         # batch_size = args.batch_size
@@ -46,38 +46,56 @@ class _EVAL(object):
         batch_index = 0
 
         bleu_score_list = []
+        with torch.no_grad():
+            for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
+                
+                # if batch_index > 0:
+                #     break
 
-        for input_batch, user_batch,  target_batch, ARe_batch, RRe_batch, length_batch in eval_data:
+                # batch_index += 1
+                input_batch_gpu = input_batch.to(self.m_device)
+                input_length_batch_gpu = input_length_batch.to(self.m_device)
 
-            # if batch_index > 0:
-            #     break
+                user_batch_gpu = user_batch.to(self.m_device)
+                item_batch_gpu = item_batch.to(self.m_device)
 
-            # batch_index += 1
+                target_batch_gpu = target_batch.to(self.m_device)
+                target_length_batch_gpu = target_length_batch.to(self.m_device)
+                # RRe_batch = RRe_batch.to(self.m_device)
+                # ARe_batch = ARe_batch.to(self.m_device)
 
-            input_batch_gpu = input_batch.to(self.m_device)
-            user_batch_gpu = user_batch.to(self.m_device)
-            length_batch_gpu = length_batch.to(self.m_device)
-            target_batch_gpu = target_batch.to(self.m_device)
-            RRe_batch_gpu = RRe_batch.to(self.m_device)
-            ARe_batch_gpu = ARe_batch.to(self.m_device)
+                input_de_batch_gpu = target_batch_gpu[:, :-1]
+                input_de_length_batch_gpu = target_length_batch_gpu-1
 
-            logp, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch_gpu, user_batch_gpu, length_batch_gpu)
-            # print("*"*10, "encode -->  decode <--", "*"*10)
+                logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, random_flag)       
 
-            mean = torch.cat([z_mean, s_mean], dim=1)
-            max_seq_len = max(length_batch)
-            samples, z = self.f_decode_text(mean, max_seq_len)
+                # mean = torch.cat([z_mean, s_mean], dim=1)
+                # mean = z_mean+s_mean+l_mean
+                # mean = z_mean+s_mean
+                # mean = s_mean+l_mean
+                if random_flag == 0:
+                    mean = z_mean+s_mean+l_mean
+                elif random_flag == 1:
+                    mean = z_mean+s_mean
+                elif random_flag == 2:
+                    mean = s_mean+l_mean
+                elif random_flag == 3:
+                    mean = z_mean+l_mean
 
-            lens = length_batch.tolist()
-            preds = samples.cpu().tolist()
-            target_batch = target_batch.tolist()
+                max_seq_len = max(target_length_batch-1)
+                samples, z = self.f_decode_text(mean, max_seq_len)
 
-            preds = [pred_i[:lens[index]]for index, pred_i in enumerate(preds)]
-            targets = [target_i[:lens[index]]for index, target_i in enumerate(target_batch)]
+                lens = target_length_batch-1
+                lens = lens.tolist()
+                preds = samples.cpu().tolist()
+                target_batch = target_batch[:, 1:].tolist()
 
-            bleu_score_batch = get_bleu(preds, targets)
+                preds = [pred_i[:lens[index]]for index, pred_i in enumerate(preds)]
+                targets = [target_i[:lens[index]]for index, target_i in enumerate(target_batch)]
 
-            bleu_score_list.append(bleu_score_batch)
+                bleu_score_batch = get_bleu(preds, targets)
+
+                bleu_score_list.append(bleu_score_batch)
 
         mean_bleu_score = np.mean(bleu_score_list)
         print("bleu score", mean_bleu_score)

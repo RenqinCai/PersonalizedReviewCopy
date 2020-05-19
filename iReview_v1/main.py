@@ -13,8 +13,8 @@ from perturb_data import _Data
 from movie import _MOVIE, _MOVIE_TEST
 from model import REVIEWDI
 import datetime
-# from inference import INFER
-from inference_new import INFER
+from inference import INFER
+# from inference_new import INFER
 from optimizer import Optimizer
 from logger import Logger
 import random
