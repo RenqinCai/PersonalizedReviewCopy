@@ -67,7 +67,7 @@ class _EVAL(object):
                 input_de_batch_gpu = target_batch_gpu[:, :-1]
                 input_de_length_batch_gpu = target_length_batch_gpu-1
 
-                logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, random_flag)       
+                logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)       
 
                 # mean = torch.cat([z_mean, s_mean], dim=1)
                 # mean = z_mean+s_mean+l_mean

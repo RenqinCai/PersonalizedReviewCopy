@@ -22,25 +22,17 @@ class _REC_LOSS(nn.Module):
 class _KL_LOSS_CUSTOMIZE(nn.Module):
     def __init__(self, device):
         super(_KL_LOSS_CUSTOMIZE, self).__init__()
-        print("kl loss for z")
+        print("kl loss with non zero prior")
 
         self.m_device = device
     
     # def forward(self, mean_prior, logv_prior, mean, logv, step, k, x0, anneal_func):
-    def forward(self, mean_prior, mean, logv, step, k, x0, anneal_func):
+    def forward(self, mean_prior, mean, logv):
         # loss = -0.5*torch.sum(-logv_prior+logv+1-logv.exp()/logv_prior.exp()-((mean_prior-mean)/logv_prior.exp()).pow(2))
 
-        loss = -0.5*torch.sum(logv+1-logv.exp()-(mean_prior-mean).pow(2))
+        loss = -0.5*torch.sum(logv+1-logv.exp()-(mean-mean_prior).pow(2))
 
-        weight = 0
-        if anneal_func == "logistic":
-            weight = float(1/(1+np.exp(-k*(step-x0))))
-        elif anneal_func == "":
-            weight = min(1, step/x0)
-        else:
-            raise NotImplementedError
-
-        return loss, weight
+        return loss 
 
 class _KL_LOSS_STANDARD(nn.Module):
     def __init__(self, device):

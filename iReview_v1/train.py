@@ -40,8 +40,8 @@ class TRAINER(object):
         self.m_anneal_func = args.anneal_func
         
         self.m_rec_loss = _REC_LOSS(self.m_device, ignore_index=self.m_pad_idx)
-        self.m_kl_loss_z = _KL_LOSS_STANDARD(self.m_device)
-        self.m_kl_loss_s = _KL_LOSS_STANDARD(self.m_device)
+        self.m_kl_loss_z = _KL_LOSS_CUSTOMIZE(self.m_device)
+        self.m_kl_loss_s = _KL_LOSS_CUSTOMIZE(self.m_device)
         self.m_kl_loss_l = _KL_LOSS_STANDARD(self.m_device)
 
         self.m_train_step = 0
@@ -151,6 +151,10 @@ class TRAINER(object):
 
             user_batch = user_batch.to(self.m_device)
             item_batch = item_batch.to(self.m_device)
+
+            # print("user_batch 2", user_batch)
+            # print("user_batch size", user_batch.size())
+            # print("item_batch", item_batch.size())
             
             target_batch = target_batch.to(self.m_device)
             target_length_batch = target_length_batch.to(self.m_device)
@@ -158,7 +162,7 @@ class TRAINER(object):
             input_de_batch = target_batch[:, :-1]
             input_de_length_batch = target_length_batch-1
 
-            logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = network(input_batch, input_length_batch, input_de_batch, input_de_length_batch, user_batch, random_flag)
+            logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = network(input_batch, input_length_batch, input_de_batch, input_de_length_batch, user_batch, item_batch, random_flag)
 
             batch_size = input_batch.size(0)
             ### NLL loss
@@ -168,11 +172,11 @@ class TRAINER(object):
             loss = NLL_loss
             KL_loss = None
             if random_flag == 0:
-                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
+                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv, z_prior)
                 KL_weight_z = self.f_get_KL_weight()
                 KL_loss_z = KL_loss_z/batch_size
 
-                KL_loss_s = self.m_kl_loss_s(s_mean, s_logv)
+                KL_loss_s = self.m_kl_loss_s(s_mean, s_logv, s_prior)
                 KL_weight_s = self.f_get_KL_weight()
                 KL_loss_s = KL_loss_s/batch_size
 
@@ -184,11 +188,11 @@ class TRAINER(object):
                 KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s+KL_weight_l*KL_loss_l
                 # loss = loss + KL_loss
             elif random_flag == 1:
-                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
+                KL_loss_z = self.m_kl_loss_z(z_prior, z_mean, z_logv)
                 KL_weight_z = self.f_get_KL_weight()
                 KL_loss_z = KL_loss_z/batch_size
 
-                KL_loss_s = self.m_kl_loss_s(s_mean, s_logv)
+                KL_loss_s = self.m_kl_loss_s(s_prior, s_mean, s_logv)
                 KL_weight_s = self.f_get_KL_weight()
                 KL_loss_s = KL_loss_s/batch_size
 
@@ -207,7 +211,7 @@ class TRAINER(object):
                 KL_loss = KL_weight_s*KL_loss_s+KL_weight_l*KL_loss_l
                 loss = loss + KL_loss
             elif random_flag == 3:
-                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
+                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv, z_prior)
                 KL_weight_z = self.f_get_KL_weight()
                 KL_loss_z = KL_loss_z/batch_size
 

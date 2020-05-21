@@ -34,8 +34,8 @@ class REVIEWDI(nn.Module):
         self.m_embedding = nn.Embedding(self.m_vocab_size, self.m_embedding_size)
         self.m_embedding_dropout = nn.Dropout(p=self.m_embedding_dropout)
 
-        # self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
-        # self.m_item_embedding = nn.Embedding(self.m_item_size, self.m_latent_size)
+        self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
+        self.m_item_embedding = nn.Embedding(self.m_item_size, self.m_latent_size)
         
         # print(self.m_user_embedding.size())
 
@@ -64,7 +64,7 @@ class REVIEWDI(nn.Module):
 
         self = self.to(self.m_device)
 
-    def forward(self, input_sequence, input_length, input_de_sequence, input_de_length, user_ids, random_flag):
+    def forward(self, input_sequence, input_length, input_de_sequence, input_de_length, user_ids, item_ids, random_flag):
         batch_size = input_sequence.size(0)
 
         input_embedding = self.m_embedding(input_sequence)
@@ -90,16 +90,23 @@ class REVIEWDI(nn.Module):
         l_logv = None
         l = None
 
+        z_prior = None
+        s_prior = None
+
         if random_flag == 0:
             z_mean = self.m_hidden2mean_z(last_en_hidden)
             z_logv = self.m_hidden2logv_z(last_en_hidden)
             z_std = torch.exp(0.5*z_logv)
             z = torch.randn_like(z_std)*z_std + z_mean
 
+            z_prior = self.m_user_embedding(user_ids)
+
             s_mean = self.m_hidden2mean_s(last_en_hidden)
             s_logv = self.m_hidden2logv_s(last_en_hidden)
             s_std = torch.exp(0.5*s_logv)
             s = torch.randn_like(s_std)*s_std + s_mean
+
+            s_prior = self.m_item_embedding(item_ids)
 
             l_mean = self.m_hidden2mean_l(last_en_hidden)
             l_logv = self.m_hidden2logv_l(last_en_hidden)
@@ -115,10 +122,14 @@ class REVIEWDI(nn.Module):
             z_std = torch.exp(0.5*z_logv)
             z = torch.randn_like(z_std)*z_std + z_mean
 
+            z_prior = self.m_user_embedding(user_ids)
+
             s_mean = self.m_hidden2mean_s(last_en_hidden)
             s_logv = self.m_hidden2logv_s(last_en_hidden)
             s_std = torch.exp(0.5*s_logv)
             s = torch.randn_like(s_std)*s_std + s_mean
+
+            s_prior = self.m_item_embedding(item_ids)
 
             variational_hidden = z+s
             # variational_hidden = torch.cat([z, s], dim=1)
@@ -128,6 +139,8 @@ class REVIEWDI(nn.Module):
             s_logv = self.m_hidden2logv_s(last_en_hidden)
             s_std = torch.exp(0.5*s_logv)
             s = torch.randn_like(s_std)*s_std + s_mean
+
+            s_prior = self.m_item_embedding(item_ids)
 
             l_mean = self.m_hidden2mean_l(last_en_hidden)
             l_logv = self.m_hidden2logv_l(last_en_hidden)
@@ -142,6 +155,8 @@ class REVIEWDI(nn.Module):
             z_logv = self.m_hidden2logv_z(last_en_hidden)
             z_std = torch.exp(0.5*z_logv)
             z = torch.randn_like(z_std)*z_std + z_mean
+
+            z_prior = self.m_user_embedding(user_ids)
 
             l_mean = self.m_hidden2mean_l(last_en_hidden)
             l_logv = self.m_hidden2logv_l(last_en_hidden)
@@ -180,7 +195,7 @@ class REVIEWDI(nn.Module):
         output = output.contiguous()
         logits = self.m_output2vocab(output.view(-1, output.size(2)))
         
-        return logits, z_mean, z_logv, z, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden
+        return logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden
 
         
 

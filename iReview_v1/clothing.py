@@ -102,14 +102,6 @@ class _CLOTHING(Dataset):
             input_review = [self.m_sos_id] + input_review
             target_review = [self.m_sos_id] + word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
 
-            print("=="*10)
-            print("target")
-            # for target_idx_tmp, _ in enumerate(target_review):
-                # target_i_tmp = target_review[target_idx_tmp]
-            for word_idx in target_review:
-                print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
-            print("\n")
-
             self.m_length_batch_list[batch_index].append(length_list[sample_index])
 
             self.m_input_batch_list[batch_index].append(input_review)
@@ -119,35 +111,43 @@ class _CLOTHING(Dataset):
             target_user_p_review = [self.m_sos_id] + user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_user_p_target_batch_list[batch_index].append(target_user_p_review)
 
-            print("user")
-            # for target_idx_tmp, _ in enumerate(target_user_p_review):
-                # target_i_tmp = target_user_p_review[target_idx_tmp]
-            for word_idx in target_user_p_review:
-                print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
-            print("\n")
-
             item_p_review = review_obj.m_item_perturb_words
             target_item_p_review = [self.m_sos_id] + item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_item_p_target_batch_list[batch_index].append(target_item_p_review)
-
-            print("item")
-            # for target_idx_tmp, _ in enumerate(target_item_p_review):
-            #     target_i_tmp = target_item_p_review[target_idx_tmp]
-            for word_idx in target_item_p_review:
-                print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
-            print("\n")
 
             local_p_review = review_obj.m_local_perturb_words
             target_local_p_review = [self.m_sos_id] + local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
             self.m_local_p_target_batch_list[batch_index].append(target_local_p_review)
 
-            print("local")
-            # for target_idx_tmp, _ in enumerate(target_local_p_review):
-            #     target_i_tmp = target_local_p_review[target_idx_tmp]
-            for word_idx in target_local_p_review:
-                print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
-            print("\n")
-            print("=="*10)
+            # print("=="*10)
+            # print("target")
+            # # for target_idx_tmp, _ in enumerate(target_review):
+            #     # target_i_tmp = target_review[target_idx_tmp]
+            # for word_idx in target_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("user")
+            # # for target_idx_tmp, _ in enumerate(target_user_p_review):
+            #     # target_i_tmp = target_user_p_review[target_idx_tmp]
+            # for word_idx in target_user_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("item")
+            # # for target_idx_tmp, _ in enumerate(target_item_p_review):
+            # #     target_i_tmp = target_item_p_review[target_idx_tmp]
+            # for word_idx in target_item_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("local")
+            # # for target_idx_tmp, _ in enumerate(target_local_p_review):
+            # #     target_i_tmp = target_local_p_review[target_idx_tmp]
+            # for word_idx in target_local_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+            # print("=="*10)
 
             user_id = int(review_obj.m_user_id)
             self.m_user_batch_list[batch_index].append(user_id)
@@ -155,7 +155,7 @@ class _CLOTHING(Dataset):
             item_id = int(review_obj.m_item_id)
             self.m_item_batch_list[batch_index].append(item_id)
             
-        exit()
+        # exit()
         print("loaded data")
 
     def __iter__(self):
@@ -175,6 +175,8 @@ class _CLOTHING(Dataset):
             input_length_batch = self.m_length_batch_list[batch_index]
 
             user_batch = self.m_user_batch_list[batch_index]
+
+            # print("user_batch 1", user_batch)
             item_batch = self.m_item_batch_list[batch_index]
 
             target_batch = None
@@ -220,14 +222,18 @@ class _CLOTHING(Dataset):
                 # e_time = datetime.datetime.now()
                 # print("yield batch data duration", e_time-ss_time)
 
-            user_batch_iter = user_batch
-            item_batch_iter = item_batch
+            user_iter = user_batch
+            item_iter = item_batch
+
+            # print("user_batch 3", user_batch_iter)
 
             input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
             input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
 
             user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
             item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
+
+            # print("user_batch 4", user_iter_tensor)
 
             target_length_iter_tensor = torch.from_numpy(np.array(target_length_iter)).long()
             target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
