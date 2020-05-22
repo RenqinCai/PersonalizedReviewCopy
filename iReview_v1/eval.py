@@ -83,7 +83,8 @@ class _EVAL(object):
                     mean = z_mean+l_mean
 
                 max_seq_len = max(target_length_batch-1)
-                samples, z = self.f_decode_text(mean, max_seq_len)
+                samples, z = self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
+                # samples, z = self.f_decode_text(mean, max_seq_len)
 
                 lens = target_length_batch-1
                 lens = lens.tolist()
@@ -100,14 +101,12 @@ class _EVAL(object):
         mean_bleu_score = np.mean(bleu_score_list)
         print("bleu score", mean_bleu_score)
 
-    def f_decode_text(self, z, max_seq_len, n=4):
+    def f_decode_text(self, z, s, l, max_seq_len, n=4):
         if z is None:
             assert "z is none"
 
         batch_size = self.m_batch_size
 
-        init_de_hidden = self.m_network.m_latent2hidden(z)
-        
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
         seq_running = torch.arange(0, batch_size).long().to(self.m_device)
@@ -120,7 +119,7 @@ class _EVAL(object):
 
         t = 0
 
-        repeat_hidden_0 = init_de_hidden.unsqueeze(1)
+        var_de = self.m_network.m_latent2hidden(z+s+l)
 
         # print("hidden size", hidden.size())
         hidden = None
@@ -130,11 +129,13 @@ class _EVAL(object):
             if t == 0:
                 input_seq = torch.zeros(batch_size).fill_(self.m_sos_idx).long().to(self.m_device)
             
-            input_seq = input_seq.unsqueeze(1)
+            # input_seq = input_seq.unsqueeze(1)
             # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
+            
+            input_embedding = input_embedding+var_de
 
-            input_embedding = input_embedding+repeat_hidden_0
+            input_embedding = input_embedding.unsqueeze(1)
 
             # print("input_embedding", input_embedding.size())
             output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
@@ -158,9 +159,18 @@ class _EVAL(object):
                 input_seq = input_seq[running_seqs]
 
                 hidden = hidden[:, running_seqs]
-                repeat_hidden_0 = repeat_hidden_0[running_seqs]
+                var_de = var_de[running_seqs]
+                # repeat_hidden_0 = repeat_hidden_0[running_seqs]
+                output = output[running_seqs]
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
+
+                z = z[running_seqs]
+                s = s[running_seqs]
+                l = l[running_seqs]
+                
+                var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
+                var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
 
             t += 1
 

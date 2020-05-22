@@ -1,12 +1,12 @@
 import numpy as np
 import torch
-import random
 from nltk.translate.bleu_score import sentence_bleu
 import os
 from metric import get_bleu
 import torch.nn.functional as F
+import torch.nn as nn
 
-class INFER(object):
+class _EVAL(object):
     def __init__(self, vocab_obj, args, device):
         super().__init__()
 
@@ -26,7 +26,7 @@ class INFER(object):
         self.m_device = device
         self.m_model_path = args.model_path
 
-    def f_init_infer(self, network, model_file=None, reload_model=False):
+    def f_init_eval(self, network, model_file=None, reload_model=False):
         if reload_model:
             print("reload model")
             if not model_file:
@@ -38,24 +38,23 @@ class INFER(object):
 
         self.m_network = network
 
-    def f_inference(self, train_data, eval_data):
+    def f_eval(self, train_data, eval_data):
         self.m_mean_loss = 0
         # for epoch_i in range(self.m_epoch):
         # batch_size = args.batch_size
-        self.m_network.eval()
+
         infer_loss_list = []
         
         batch_index = 0
 
         bleu_score_list = []
-
         with torch.no_grad():
             for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
-                if batch_index > 0:
-                    break
+                
+                # if batch_index > 0:
+                #     break
 
-                batch_index += 1
-
+                # batch_index += 1
                 input_batch_gpu = input_batch.to(self.m_device)
                 input_length_batch_gpu = input_length_batch.to(self.m_device)
 
@@ -64,25 +63,16 @@ class INFER(object):
 
                 target_batch_gpu = target_batch.to(self.m_device)
                 target_length_batch_gpu = target_length_batch.to(self.m_device)
-                # RRe_batch = RRe_batch.to(self.m_device)
-                # ARe_batch = ARe_batch.to(self.m_device)
 
                 input_de_batch_gpu = target_batch_gpu[:, :-1]
                 input_de_length_batch_gpu = target_length_batch_gpu-1
 
-                logits, z_prior, z_mean, z_logv, z, s_mean, s_logv, s_prior, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)       
+                logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)       
 
-                print('random_flag', random_flag)
-
-                # print("*"*10, "encode -->  decode <--", "*"*10)
-                
-                print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-                # mean = mean.unsqueeze(0)
-                # print("size", z_mean.size(), s_mean.size())
                 # mean = torch.cat([z_mean, s_mean], dim=1)
-                # mean = torch.cat([z_mean, s_mean], dim=1)
-
+                # mean = z_mean+s_mean+l_mean
+                # mean = z_mean+s_mean
+                # mean = s_mean+l_mean
                 if random_flag == 0:
                     mean = z_mean+s_mean+l_mean
                 elif random_flag == 1:
@@ -91,36 +81,31 @@ class INFER(object):
                     mean = s_mean+l_mean
                 elif random_flag == 3:
                     mean = z_mean+l_mean
-                
+
                 max_seq_len = max(target_length_batch-1)
-                samples, z, user_item_flags= self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
+                samples, z = self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
 
-                # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                lens = target_length_batch-1
+                lens = lens.tolist()
+                preds = samples.cpu().tolist()
+                target_batch = target_batch[:, 1:].tolist()
 
-                # bleu_score_batch = self.f_eval(samples.cpu(), target_batch.cpu(), length_batch.cpu())
-                # print("batch bleu score", bleu_score_batch)
+                preds = [pred_i[:lens[index]]for index, pred_i in enumerate(preds)]
+                targets = [target_i[:lens[index]]for index, target_i in enumerate(target_batch)]
 
-                # print("user_item_flags", user_item_flags)
+                bleu_score_batch = get_bleu(preds, targets)
 
-                # bleu_score_list.append(bleu_score_batch)
-                print("<-"*10)
-                print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                bleu_score_list.append(bleu_score_batch)
 
-                print2flag(user_item_flags)
-                # print(*print2flag(user_item_flags), sep='\n')
-
-                print("<-"*10)
-                print("target", "<-"*10, *idx2word(target_batch[:, 1:,], i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-        # mean_bleu_score = np.mean(bleu_score_list)
-        # print("bleu score", mean_bleu_score)
+        mean_bleu_score = np.mean(bleu_score_list)
+        print("bleu score", mean_bleu_score)
 
     def f_decode_text(self, z, s, l, max_seq_len, n=4):
         if z is None:
             assert "z is none"
 
         batch_size = self.m_batch_size
-        
+
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
         seq_running = torch.arange(0, batch_size).long().to(self.m_device)
@@ -131,16 +116,12 @@ class INFER(object):
 
         generations = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device).long()
 
-        user_item_flags = torch.zeros(batch_size, max_seq_len).fill_(self.m_pad_idx).to(self.m_device)
-
         t = 0
 
         var_de = self.m_network.m_latent2hidden(z+s+l)
 
         # print("hidden size", hidden.size())
         hidden = None
-
-        var_de_flag = torch.zeros(batch_size, 1).to(self.m_device)
 
         while(t < max_seq_len and len(running_seqs)>0):
             # print("t", t)
@@ -150,8 +131,9 @@ class INFER(object):
             # input_seq = input_seq.unsqueeze(1)
             # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
-
+            
             input_embedding = input_embedding+var_de
+
             input_embedding = input_embedding.unsqueeze(1)
 
             # print("input_embedding", input_embedding.size())
@@ -164,8 +146,7 @@ class INFER(object):
             if len(input_seq.size()) < 1:
                 input_seq = input_seq.unsqueeze(0)
 
-            # print("var_de_flag", var_de_flag, end=" ")
-            generations, user_item_flags = self._save_sample(generations, user_item_flags, var_de_flag, input_seq, seq_running, t)
+            generations = self._save_sample(generations, input_seq, seq_running, t)
 
             seq_mask[seq_running] = (input_seq != self.m_eos_idx).bool()
             seq_running = seq_idx.masked_select(seq_mask)
@@ -178,9 +159,8 @@ class INFER(object):
 
                 hidden = hidden[:, running_seqs]
                 var_de = var_de[running_seqs]
-                output = output[running_seqs]
-
                 # repeat_hidden_0 = repeat_hidden_0[running_seqs]
+                output = output[running_seqs].squeeze(1)
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
 
@@ -188,13 +168,30 @@ class INFER(object):
                 s = s[running_seqs]
                 l = l[running_seqs]
                 
-                var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
+                z_attn = torch.cat([output, z], dim=-1)
+                s_attn = torch.cat([output, s], dim=-1)
+                l_attn = torch.cat([output, l], dim=-1)
+
+                z_attn_score = self.m_network.m_attn(z_attn)
+                s_attn_score = self.m_network.m_attn(s_attn)
+                l_attn_score = self.m_network.m_attn(l_attn)
+
+                attn_score = F.softmax(torch.cat([z_attn_score, s_attn_score, l_attn_score], dim=-1), dim=-1)
+                # print("attn_score", attn_score)
                 
-                var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
+                var_de = attn_score[:, 0].unsqueeze(1)*z
+                var_de = var_de + attn_score[:, 1].unsqueeze(1)*s
+                var_de = var_de + attn_score[:, 2].unsqueeze(1)*l
+
+                var_de = self.m_network.m_latent2hidden(var_de)
+
+                # var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
+                # var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
 
             t += 1
-        # print("user_item_flags", user_item_flags)
-        return generations, z, user_item_flags
+        # exit()
+
+        return generations, z
 
     def _sample(self, dist, mode="greedy"):
         if mode == 'greedy':
@@ -203,49 +200,22 @@ class INFER(object):
 
         return sample
 
-    def _save_sample(self, save_to, user_item_flags, var_de_flag, sample, running_seqs, t):
+    def _save_sample(self, save_to, sample, running_seqs, t):
         # select only still running
         running_latest = save_to[running_seqs]
         # update token at position t
         running_latest[:,t] = sample.data
         # save back
         save_to[running_seqs] = running_latest
-        
-        # print("debug 1....", var_de_flag.squeeze().data)
-        running_flags = user_item_flags[running_seqs]
-        running_flags[:, t] = var_de_flag.squeeze().data
-        user_item_flags[running_seqs] = running_flags
 
-        # print("running_flags", running_flags[:, t])
-        # print("debug 2....", user_item_flags)
-
-        return save_to, user_item_flags
-
-def print2flag(idx):
-
-    print_sent_num = 10
-    sent_str = [str()]*print_sent_num
-
-    for sent_i, sent in enumerate(idx):
-        if sent_i >= print_sent_num:
-            break
-        
-        for flag_step_i in sent:
-            sent_str[sent_i] += str(flag_step_i.item())+" "
-            print("%.4f"%flag_step_i.item(), end=" ")
-        print("\n")
-    return sent_str
+        return save_to
 
 def idx2word(idx, i2w, pad_idx):
 
-    print_sent_num = 10
-    sent_str = [str()]*print_sent_num
-    # sent_str = [str()]*len(idx)
-    # print(i2w)
+    sent_str = [str()]*len(idx)
+
     for i, sent in enumerate(idx):
-        if i >= print_sent_num:
-            break
-            
+        # print(" "*10, "*"*10)
         for word_id in sent:
 
             if word_id == pad_idx:

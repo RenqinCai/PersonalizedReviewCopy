@@ -18,7 +18,8 @@ from inference import INFER
 from optimizer import Optimizer
 from logger import Logger
 import random
-from eval_new import _EVAL
+# from eval_new import _EVAL
+from eval_attn import _EVAL
 
 def set_seed(seed):
     random.seed(seed)
@@ -64,7 +65,7 @@ def main(args):
     
     print("total parameters num", total_param_num)
 
-    if  args.train:
+    if args.train:
         logger_obj = Logger()
         logger_obj.f_add_writer(args)
 
@@ -131,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--train', action="store_true", default=False)
     parser.add_argument('--eval', action="store_true", default=False)
     parser.add_argument('--test', action="store_true", default=False)
+    parser.add_argument('--decode', type=str, default="avg")
     parser.add_argument('--print_interval', type=int, default=400)
     
     args = parser.parse_args()

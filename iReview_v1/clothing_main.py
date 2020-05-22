@@ -19,8 +19,9 @@ from inference import INFER
 from optimizer import Optimizer
 from logger import Logger
 import random
-from eval import _EVAL
+# from eval import _EVAL
 # from eval_new import _EVAL
+from eval_attn import _EVAL
 
 def set_seed(seed):
     random.seed(seed)

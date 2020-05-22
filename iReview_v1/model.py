@@ -57,10 +57,9 @@ class REVIEWDI(nn.Module):
         self.m_latent2hidden = nn.Linear(self.m_latent_size, self.m_embedding_size)
         self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
 
-        # self.m_latent2RRe = nn.Linear(self.m_latent_size, self.m_hidden_size)
-        # self.m_latent2ARe = nn.Linear(self.m_latent_size, self.m_hidden_size)
-        # self.m_latent2RRe = nn.Linear(self.m_latent_size, self.m_vocab_size)
-        # self.m_latent2ARe = nn.Linear(self.m_latent_size, self.m_vocab_size)
+        self.m_decoder_gate = nn.Sequential(nn.Linear(self.m_hidden_size, 1), nn.Sigmoid())
+
+        self.m_attn = nn.Sequential(nn.Linear(self.m_hidden_size+self.m_latent_size, self.m_hidden_size), nn.Tanh(), nn.Linear(self.m_hidden_size, 1)) 
 
         self = self.to(self.m_device)
 
@@ -168,16 +167,89 @@ class REVIEWDI(nn.Module):
         else:
             raise NotImplementedError("0, 1, 2, 3, variational not defined!")
 
-        init_de_hidden = self.m_latent2hidden(variational_hidden)
+        # init_de_hidden = self.m_latent2hidden(variational_hidden)
 
         input_de_embedding = self.m_embedding(input_de_sequence)
-        repeat_init_de_hidden = init_de_hidden.unsqueeze(1)
-        repeat_init_de_hidden = repeat_init_de_hidden.expand(init_de_hidden.size(0), input_de_embedding.size(1), init_de_hidden.size(-1))
+        # repeat_init_de_hidden = init_de_hidden.unsqueeze(1)
+        # repeat_init_de_hidden = repeat_init_de_hidden.expand(init_de_hidden.size(0), input_de_embedding.size(1), init_de_hidden.size(-1))
 
-        input_de_embedding = input_de_embedding+repeat_init_de_hidden
+        # input_de_embedding = input_de_embedding+repeat_init_de_hidden
 
         hidden = None
-        output, hidden = self.m_decoder_rnn(input_de_embedding, hidden)
+
+        de_batch_size = input_de_sequence.size(0)
+        de_len = input_de_sequence.size(1)
+        # print("decoding length", de_len)
+
+        output = []
+        var_de = self.m_latent2hidden(variational_hidden)
+
+        decode_strategy = "attn"
+
+        if decode_strategy == "avg":
+            """
+            avg mechanism
+            """
+
+            for de_step_i in range(de_len):
+                input_de_step_i = input_de_embedding[:, de_step_i, :]+var_de
+                input_de_step_i = input_de_step_i.unsqueeze(1)
+                output_step_i, hidden = self.m_decoder_rnn(input_de_step_i, hidden)
+                output.append(output_step_i)
+
+                # var_de_flag = self.m_decoder_gate(output_step_i.squeeze(1))
+                # # print("var_de_flag", var_de_flag.size())
+                # var_de = self.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
+            output = torch.cat(output, dim=1)
+
+        elif decode_strategy == "gating":
+            """
+            gating mechanism
+            """
+
+            for de_step_i in range(de_len):
+                input_de_step_i = input_de_embedding[:, de_step_i, :]+var_de
+                input_de_step_i = input_de_step_i.unsqueeze(1)
+                output_step_i, hidden = self.m_decoder_rnn(input_de_step_i, hidden)
+                output.append(output_step_i)
+
+                var_de_flag = self.m_decoder_gate(output_step_i.squeeze(1))
+                # print("var_de_flag", var_de_flag.size())
+                var_de = self.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
+
+            output = torch.cat(output, dim=1)
+
+        elif decode_strategy == "attn":
+            """
+            attention mechanism
+            """
+
+            for de_step_i in range(de_len):
+                input_de_step_i = input_de_embedding[:, de_step_i, :]+var_de
+                input_de_step_i = input_de_step_i.unsqueeze(1)
+                output_step_i, hidden = self.m_decoder_rnn(input_de_step_i, hidden)
+                output.append(output_step_i)
+
+                output_step_i = output_step_i.squeeze(1)
+                z_attn = torch.cat([output_step_i, z], dim=-1)
+                s_attn = torch.cat([output_step_i, s], dim=-1)
+                l_attn = torch.cat([output_step_i, l], dim=-1)
+
+                z_attn_score = self.m_attn(z_attn)
+                s_attn_score = self.m_attn(s_attn)
+                l_attn_score = self.m_attn(l_attn)
+
+                attn_score = F.softmax(torch.cat([z_attn_score, s_attn_score, l_attn_score], dim=-1), dim=-1)
+
+                var_de = attn_score[:, 0].unsqueeze(1)*z
+                var_de = var_de+attn_score[:, 1].unsqueeze(1)*s
+                var_de = var_de+attn_score[:, 2].unsqueeze(1)*l
+                # var_de = attn_score[:, 0]*z+attn_score[:, 1]*s+attn_score[:, 2]*l
+                var_de = self.m_latent2hidden(var_de)
+
+            output = torch.cat(output, dim=1)
+
+        # print("output size", output.size())
         # if self.m_word_dropout_rate > 0:
         #     prob = torch.rand(input_sequence.size()).to(self.m_device)
 
@@ -189,14 +261,7 @@ class REVIEWDI(nn.Module):
         #     decoder_input_sequence[prob < self.m_word_dropout_rate] = self.m_unk_idx
         #     input_embedding = self.m_embedding(decoder_input_sequence)
 
-        ### Rec loss
-        ### output: batch_size*seq_len*hidden_size
-        ### logits: (batch_size*seq_len)*hidden_size
         output = output.contiguous()
         logits = self.m_output2vocab(output.view(-1, output.size(2)))
         
-        return logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden
-
-        
-
-            
+        return logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden    
