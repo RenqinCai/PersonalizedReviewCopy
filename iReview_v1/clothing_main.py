@@ -14,7 +14,7 @@ from perturb_data_clothing import _Data
 from clothing import _CLOTHING, _CLOTHING_TEST
 from model import REVIEWDI
 import datetime
-from inference import INFER
+# from inference import INFER
 # from inference_new import INFER
 from optimizer import Optimizer
 from logger import Logger
@@ -22,6 +22,7 @@ import random
 # from eval import _EVAL
 # from eval_new import _EVAL
 from eval_attn import _EVAL
+from inference_attn import INFER
 
 def set_seed(seed):
     random.seed(seed)

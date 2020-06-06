@@ -59,7 +59,7 @@ class REVIEWDI(nn.Module):
 
         self.m_decoder_gate = nn.Sequential(nn.Linear(self.m_hidden_size, 1), nn.Sigmoid())
 
-        self.m_attn = nn.Sequential(nn.Linear(self.m_hidden_size+self.m_latent_size, self.m_hidden_size), nn.Tanh(), nn.Linear(self.m_hidden_size, 1)) 
+        # self.m_attn = nn.Sequential(nn.Linear(self.m_hidden_size+self.m_latent_size, self.m_hidden_size), nn.Tanh(), nn.Linear(self.m_hidden_size, 1)) 
 
         self = self.to(self.m_device)
 
@@ -184,7 +184,7 @@ class REVIEWDI(nn.Module):
         output = []
         var_de = self.m_latent2hidden(variational_hidden)
 
-        decode_strategy = "attn"
+        decode_strategy = "avg"
 
         if decode_strategy == "avg":
             """
