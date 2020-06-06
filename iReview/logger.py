@@ -15,7 +15,10 @@ class Logger():
 		output_file = myhost+"_"+file_time+str(data_name)
 
 		# print("output_file", output_file)
+	
 		output_dir = "../log/"+args.model_name+"/"
+		if args.hcdmg1:
+			output_dir = "../log_hcdmg1/"+args.model_name+"/"
 		if not os.path.exists(output_dir):
 			os.mkdir(output_dir)
 
@@ -24,7 +27,10 @@ class Logger():
 		self.m_io_writer = open(output_file, "w")
 
 		tensor_file_name = myhost+"_"+file_time
-		self.m_tensor_writer = SummaryWriter("../tensorboard/"+args.model_name+"/"+tensor_file_name)
+		if args.hcdmg1:
+			self.m_tensor_writer = SummaryWriter("../tensorboard_hcdmg1/"+args.model_name+"/"+tensor_file_name)
+		else:
+			self.m_tensor_writer = SummaryWriter("../tensorboard/"+args.model_name+"/"+tensor_file_name)
 
 		self.f_add_output2IO("="*10+"parameters"+"="*10)
 		for attr, value in sorted(args.__dict__.items()):

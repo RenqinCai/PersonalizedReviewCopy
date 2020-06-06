@@ -40,8 +40,8 @@ class TRAINER(object):
         self.m_anneal_func = args.anneal_func
         
         self.m_rec_loss = _REC_LOSS(self.m_device, ignore_index=self.m_pad_idx)
-        self.m_kl_loss_z = _KL_LOSS_STANDARD(self.m_device)
-        self.m_kl_loss_s = _KL_LOSS_STANDARD(self.m_device)
+        self.m_kl_loss_z = _KL_LOSS_CUSTOMIZE(self.m_device)
+        self.m_kl_loss_s = _KL_LOSS_CUSTOMIZE(self.m_device)
         self.m_kl_loss_l = _KL_LOSS_STANDARD(self.m_device)
 
         self.m_train_step = 0
@@ -125,8 +125,7 @@ class TRAINER(object):
 
         loss_list = []
         NLL_loss_list = []
-        KL_loss_z_list = []
-        KL_loss_s_list = []
+        KL_loss_list = []
 
         # batch_size = self.m_batch_size
         iteration = 0
@@ -135,7 +134,7 @@ class TRAINER(object):
         elif train_val_flag == "val":
             network.eval()
 
-        for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch in data:
+        for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in data:
 
             if train_val_flag == "train":
                 self.m_train_step += 1
@@ -152,47 +151,92 @@ class TRAINER(object):
 
             user_batch = user_batch.to(self.m_device)
             item_batch = item_batch.to(self.m_device)
+
+            # print("user_batch 2", user_batch)
+            # print("user_batch size", user_batch.size())
+            # print("item_batch", item_batch.size())
             
             target_batch = target_batch.to(self.m_device)
             target_length_batch = target_length_batch.to(self.m_device)
 
-            input_de_batch = target_batch
-            input_de_length_batch = target_length_batch
+            input_de_batch = target_batch[:, :-1]
+            input_de_length_batch = target_length_batch-1
 
-            logits, z_mean, z_logv, z, s_mean, s_logv, s, variational_hidden = network(input_batch, input_length_batch, user_batch)
+            logits, z_prior, z_mean, z_logv, z, s_prior, s_mean, s_logv, s, l_mean, l_logv, l, variational_hidden = network(input_batch, input_length_batch, input_de_batch, input_de_length_batch, user_batch, item_batch, random_flag)
 
             batch_size = input_batch.size(0)
             ### NLL loss
-            NLL_loss = self.m_rec_loss(logits, target_batch, target_length_batch)
+            NLL_loss = self.m_rec_loss(logits, target_batch[:, 1:], target_length_batch-1)
             NLL_loss = NLL_loss/batch_size
 
             loss = NLL_loss
             KL_loss = None
-            
-            KL_loss_z = self.m_kl_loss_z(z_mean, z_logv)
-            KL_weight_z = self.f_get_KL_weight()
-            KL_loss_z = KL_loss_z/batch_size
+            if random_flag == 0:
+                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv, z_prior)
+                KL_weight_z = self.f_get_KL_weight()
+                KL_loss_z = KL_loss_z/batch_size
 
-            KL_loss_s = self.m_kl_loss_s(s_mean, s_logv)
-            KL_weight_s = self.f_get_KL_weight()
-            KL_loss_s = KL_loss_s/batch_size
+                KL_loss_s = self.m_kl_loss_s(s_mean, s_logv, s_prior)
+                KL_weight_s = self.f_get_KL_weight()
+                KL_loss_s = KL_loss_s/batch_size
 
-            KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s
-            loss = loss + KL_loss
+                KL_loss_l = self.m_kl_loss_l(l_mean, l_logv)
+                KL_weight_l = self.f_get_KL_weight()
+                KL_loss_l = KL_loss_l/batch_size
+
+                # KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s
+                KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s+KL_weight_l*KL_loss_l
+                # loss = loss + KL_loss
+            elif random_flag == 1:
+                KL_loss_z = self.m_kl_loss_z(z_prior, z_mean, z_logv)
+                KL_weight_z = self.f_get_KL_weight()
+                KL_loss_z = KL_loss_z/batch_size
+
+                KL_loss_s = self.m_kl_loss_s(s_prior, s_mean, s_logv)
+                KL_weight_s = self.f_get_KL_weight()
+                KL_loss_s = KL_loss_s/batch_size
+
+                KL_loss = KL_weight_z*KL_loss_z+KL_weight_s*KL_loss_s
+                loss = loss + KL_loss
+            elif random_flag == 2:
+
+                KL_loss_s = self.m_kl_loss_s(s_mean, s_logv)
+                KL_weight_s = self.f_get_KL_weight()
+                KL_loss_s = KL_loss_s/batch_size
+
+                KL_loss_l = self.m_kl_loss_l(l_mean, l_logv)
+                KL_weight_l = self.f_get_KL_weight()
+                KL_loss_l = KL_loss_l/batch_size
+
+                KL_loss = KL_weight_s*KL_loss_s+KL_weight_l*KL_loss_l
+                loss = loss + KL_loss
+            elif random_flag == 3:
+                KL_loss_z = self.m_kl_loss_z(z_mean, z_logv, z_prior)
+                KL_weight_z = self.f_get_KL_weight()
+                KL_loss_z = KL_loss_z/batch_size
+
+                KL_loss_l = self.m_kl_loss_l(l_mean, l_logv)
+                KL_weight_l = self.f_get_KL_weight()
+                KL_loss_l = KL_loss_l/batch_size
+
+                KL_loss = KL_weight_z*KL_loss_z+KL_weight_l*KL_loss_l
+                loss = loss + KL_loss
+            else:
+                raise NotImplementedError("0, 1, 2, 3, variational not defined!")
             
             # print("reconstruction loss:%.4f"%NLL_loss.item(), "\t KL loss z:%.4f"%KL_loss_z.item(), "\t KL loss s%.4f"%KL_loss_s.item(), "\tRRe loss:%.4f"%RRe_loss.item(), "\t ARe loss:%.4f"%ARe_loss.item())
             
             if train_val_flag == "train":
-                logger_obj.f_add_scalar2tensorboard("train/KL_loss_z", KL_loss_z.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_weight_z", KL_weight_z, self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_loss_s", KL_loss_s.item(), self.m_train_iteration)
-                logger_obj.f_add_scalar2tensorboard("train/KL_weight_s", KL_weight_s, self.m_train_iteration)
+                logger_obj.f_add_scalar2tensorboard("train/KL_loss", KL_loss.item(), self.m_train_iteration)
+                # logger_obj.f_add_scalar2tensorboard("train/KL_weight_z", KL_weight_z, self.m_train_iteration)
+                # logger_obj.f_add_scalar2tensorboard("train/KL_loss_s", KL_loss_s.item(), self.m_train_iteration)
+                # logger_obj.f_add_scalar2tensorboard("train/KL_weight_s", KL_weight_s, self.m_train_iteration)
                 logger_obj.f_add_scalar2tensorboard("train/loss", loss.item(), self.m_train_iteration)
                 logger_obj.f_add_scalar2tensorboard("train/NLL_loss", NLL_loss.item(), self.m_train_iteration)
                 
             else:
-                logger_obj.f_add_scalar2tensorboard("valid/KL_loss_z", KL_loss_z.item(), self.m_valid_iteration)
-                logger_obj.f_add_scalar2tensorboard("valid/KL_weight_z", KL_weight_z, self.m_valid_iteration)
+                logger_obj.f_add_scalar2tensorboard("valid/KL_loss", KL_loss_z.item(), self.m_valid_iteration)
+                # logger_obj.f_add_scalar2tensorboard("valid/KL_weight", KL_weight_z, self.m_valid_iteration)
                 logger_obj.f_add_scalar2tensorboard("valid/loss", loss.item(), self.m_valid_iteration)
                 logger_obj.f_add_scalar2tensorboard("valid/NLL_loss", NLL_loss.item(), self.m_valid_iteration)
                 # logger_obj.f_add_scalar2tensorboard("valid/ARe_loss", ARe_loss.item(), self.m_valid_iteration)
@@ -211,18 +255,17 @@ class TRAINER(object):
 
             loss_list.append(loss.item())
             NLL_loss_list.append(NLL_loss.item())
-            KL_loss_z_list.append(KL_loss_z.item())
-            KL_loss_s_list.append(KL_loss_s.item())
+            KL_loss_list.append(KL_loss.item())
 
             iteration += 1
             if iteration % self.m_print_interval == 0:
-                logger_obj.f_add_output2IO("%04d, Loss %9.4f, NLL-Loss %9.4f, KL z weight %.4f, KL z Loss %.4f, KL s Loss %.4f, KL s Loss %.4f"
-                    %(iteration, np.mean(loss_list), np.mean(NLL_loss_list), KL_weight_z, np.mean(KL_loss_z_list), KL_weight_s, np.mean(KL_loss_s_list)))
+                print("random_flag", random_flag)
+                logger_obj.f_add_output2IO("%04d, Loss %9.4f, NLL-Loss %9.4f, KL Loss %.4f"
+                    %(iteration, np.mean(loss_list), np.mean(NLL_loss_list), np.mean(KL_loss_list)))
 
                 loss_list = []
                 NLL_loss_list = []
-                KL_loss_z_list = []
-                KL_loss_s_list = []
+                KL_loss_list = []
 
         if train_val_flag == "train":
             self.m_mean_train_loss = np.mean(train_loss_list)

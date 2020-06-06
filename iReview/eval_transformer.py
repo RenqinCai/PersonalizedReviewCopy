@@ -3,6 +3,9 @@ import torch
 from nltk.translate.bleu_score import sentence_bleu
 import os
 from metric import get_bleu
+import torch.nn.functional as F
+import torch.nn as nn
+import math
 
 class _EVAL(object):
     def __init__(self, vocab_obj, args, device):
@@ -12,7 +15,8 @@ class _EVAL(object):
         self.m_eos_idx = vocab_obj.eos_idx
         self.m_pad_idx = vocab_obj.pad_idx
         self.m_i2w = vocab_obj.m_i2w
-
+        
+        self.m_embedding_size = args.embedding_size
         self.m_epoch = args.epochs
         self.m_batch_size = args.batch_size 
         self.m_mean_loss = 0
@@ -61,8 +65,6 @@ class _EVAL(object):
 
                 target_batch_gpu = target_batch.to(self.m_device)
                 target_length_batch_gpu = target_length_batch.to(self.m_device)
-                # RRe_batch = RRe_batch.to(self.m_device)
-                # ARe_batch = ARe_batch.to(self.m_device)
 
                 input_de_batch_gpu = target_batch_gpu[:, :-1]
                 input_de_length_batch_gpu = target_length_batch_gpu-1
@@ -84,7 +86,6 @@ class _EVAL(object):
 
                 max_seq_len = max(target_length_batch-1)
                 samples, z = self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
-                # samples, z = self.f_decode_text(mean, max_seq_len)
 
                 lens = target_length_batch-1
                 lens = lens.tolist()
@@ -128,58 +129,75 @@ class _EVAL(object):
             # print("t", t)
             if t == 0:
                 input_seq = torch.zeros(batch_size).fill_(self.m_sos_idx).long().to(self.m_device)
-            
-            # input_seq = input_seq.unsqueeze(1)
-            # print("input seq size", input_seq.size())
+                input_seq = input_seq.unsqueeze(1)
+
+            ### input_seq: batch_size*seq_len
+
+            ### input_embedding: batch_size*seq_len*embedding_size
             input_embedding = self.m_network.m_embedding(input_seq)
+
+            ### input_embedding_attn: seq_len*batch_size*embedding_size
+            input_embedding_attn = input_embedding.transpose(0, 1)
+
+            input_embedding_attn = input_embedding_attn*math.sqrt(self.m_embedding_size)
+            input_embedding_attn = self.m_network.m_pos_encoder(input_embedding_attn)
             
-            input_embedding = input_embedding+var_de
+            ### z_de: batch_size*latent_size
+            z_de = self.m_network.m_latent2hidden(z)
+            s_de = self.m_network.m_latent2hidden(s)
+            l_de = self.m_network.m_latent2hidden(l)
 
-            input_embedding = input_embedding.unsqueeze(1)
+            ### var_de: batch_size*3*latent_size
+            var_de = torch.cat([z_de.unsqueeze(1), s_de.unsqueeze(1), l_de.unsqueeze(1)], dim=1)
+            
+            ### var_de: 3*batch_size*latent_size
+            var_de = var_de.transpose(0, 1)
+            
+            ### output: seq_len*batch_size*latent_size
+            output = self.m_network.m_transformer_decoder(input_embedding_attn, var_de, tgt_mask=self.m_network.f_generate_square_subsequent_mask(len(input_embedding_attn)).to(self.m_device))
 
-            # print("input_embedding", input_embedding.size())
-            output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
+            ### output: batch_size*seq_len*latent_size
+            output = output.transpose(0, 1)
 
-            logits = self.m_network.m_output2vocab(output)
+            ### logits: batch_size*latent_size
+            logits = self.m_network.m_output2vocab(output[:, -1])
 
-            input_seq = self._sample(logits)
+            ### next_word: batch_size*1
+            next_word = self._sample(logits)
+            
+            ### input_seq: batch_size*seq_len
+            input_seq = torch.cat([input_seq, next_word], dim=-1)
 
             if len(input_seq.size()) < 1:
                 input_seq = input_seq.unsqueeze(0)
 
-            generations = self._save_sample(generations, input_seq, seq_running, t)
+            next_word = next_word.squeeze()
+            generations = self._save_sample(generations, next_word, seq_running, t)
 
-            seq_mask[seq_running] = (input_seq != self.m_eos_idx).bool()
+            seq_mask[seq_running] = (next_word != self.m_eos_idx).bool()
             seq_running = seq_idx.masked_select(seq_mask)
 
-            running_mask = (input_seq != self.m_eos_idx).bool()
+            running_mask = (next_word != self.m_eos_idx).bool()
             running_seqs = running_seqs.masked_select(running_mask)
 
             if len(running_seqs) > 0:
                 input_seq = input_seq[running_seqs]
-
-                hidden = hidden[:, running_seqs]
-                var_de = var_de[running_seqs]
-                # repeat_hidden_0 = repeat_hidden_0[running_seqs]
-                output = output[running_seqs]
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
 
                 z = z[running_seqs]
                 s = s[running_seqs]
                 l = l[running_seqs]
-                
-                var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
-                var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
 
             t += 1
+        # exit()
 
         return generations, z
 
     def _sample(self, dist, mode="greedy"):
         if mode == 'greedy':
             _, sample = torch.topk(dist, 1, dim=-1)
-        sample = sample.squeeze()
+        # sample = sample.squeeze()
 
         return sample
 

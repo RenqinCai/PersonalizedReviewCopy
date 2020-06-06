@@ -22,10 +22,15 @@ from collections import Counter
 from scipy import sparse
 from clothing import _CLOTHING, _CLOTHING_TEST
 from movie import _MOVIE, _MOVIE_TEST
+from nltk import ngrams
 
 class _Data():
     def __init__(self):
         print("data")
+
+        self.m_word_map_user_perturb = {}
+        self.m_word_map_item_perturb ={}
+        self.m_word_map_local_perturb = {}
 
     def f_create_data(self, args):
         self.m_min_occ = args.min_occ
@@ -80,7 +85,17 @@ class _Data():
         # non_informative_words = stopwords.words()+string.punctuation
         print("non informative words num", len(non_informative_words))
 
-        # print_index = 0
+        ### load user words
+        self.m_user_word_file = os.path.join(self.m_data_dir, args.user_word_file)
+        self.f_load_user_word_score(vocab_obj, self.m_user_word_file)
+
+        ### load item words
+        self.m_item_word_file = os.path.join(self.m_data_dir, args.item_word_file)
+        self.f_load_item_word_score(vocab_obj, self.m_item_word_file)
+
+        print("user word", len(self.m_user_word_score_map))
+        print("item word", len(self.m_item_word_score_map))
+
         for index, review in enumerate(train_reviews):
             if index > self.m_max_line:
                 break
@@ -92,27 +107,14 @@ class _Data():
             
             word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in words]
 
-            word_tf_map = Counter(word_ids)
-            new_word_tf_map = {}
-            for word in word_tf_map:
-                if word in non_informative_words:
-                    continue
-
-                new_word_tf_map[word] = word_tf_map[word]
-
-            informative_word_num = sum(new_word_tf_map.values())
-
-            # if informative_word_num > 100:
-            #     continue
-
-            if informative_word_num < 5:
-                continue
+            new_review_user, new_review_item, new_review_local = self.f_get_perturb(vocab_obj, item_id, words, word_ids)
 
             review_id = len(review_corpus['train'])
             review_obj = _Review()
-            review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
 
-            # print_index += 1
+            review_obj.f_set_review(review_id, word_ids)
+            # review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
+            review_obj.f_set_pertub_review(new_review_user, new_review_item, new_review_local)
 
             review_corpus["train"][review_id] = review_obj
 
@@ -148,35 +150,9 @@ class _Data():
 
         user_num = len(user_corpus)
         vocab_obj.f_set_user(global_user2uid)
-
-        save_item_corpus = {}
         
         print("item num", len(item_corpus))
 
-        # print_index = 0
-        # print_review_index = 0
-
-        for item_id in item_corpus:
-            item_obj = item_corpus[item_id]
-
-            # s_time = datetime.datetime.now()
-                
-            item_obj.f_get_item_lm()
-
-            for review_id in item_obj.m_review_id_list:
-
-                review_obj = review_corpus["train"][review_id]
-
-                item_obj.f_get_RRe(review_obj)
-                item_obj.f_get_ARe(review_obj)
-
-                # print("--"*15, "AVG", '--'*15)
-                # print(review_obj.m_avg_review_words)
-                # print("--"*15, "RES", '--'*15)
-                # print(review_obj.m_res_review_words)
-            # if item_id not in save_item_corpus:
-            #     save_item_corpus[item_id] = item_obj.m_avg_review_words
-            # exit()
         print("loading valid reviews")
         for index, review in enumerate(valid_reviews):
 
@@ -196,22 +172,14 @@ class _Data():
 
             word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in words]
 
-            word_tf_map = Counter(word_ids)
-            new_word_tf_map = {}
-            for word in word_tf_map:
-                if word in non_informative_words:
-                    continue
-
-                new_word_tf_map[word] = word_tf_map[word]
-
-            informative_word_num = sum(new_word_tf_map.values())
-
-            if informative_word_num < 5:
-                continue
+            new_review_user, new_review_item, new_review_local = self.f_get_perturb(vocab_obj, item_id, words, word_ids)
 
             review_id = len(review_corpus["valid"])
             review_obj = _Review()
-            review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
+
+            review_obj.f_set_review(review_id, word_ids)
+            # review_obj.f_set_review(review_id, word_ids, new_word_tf_map, informative_word_num)
+            review_obj.f_set_pertub_review(new_review_user, new_review_item, new_review_local)
 
             review_corpus["valid"][review_id] = review_obj
             
@@ -221,8 +189,8 @@ class _Data():
 
             item_obj = item_corpus[item_id]
             # print(len(item_corpus))
-            item_obj.f_get_RRe(review_obj)
-            item_obj.f_get_ARe(review_obj)
+            # item_obj.f_get_RRe(review_obj)
+            # item_obj.f_get_ARe(review_obj)
 
         print("load validate review num", len(review_corpus["valid"]))
 
@@ -239,6 +207,92 @@ class _Data():
             data = json.dumps(vocab, ensure_ascii=False)
             vocab_file.write(data.encode('utf8', 'replace'))
 
+    def f_get_perturb(self, vocab_obj, item_id, tokens, token_ids):
+        tokenizer = TweetTokenizer(preserve_case=False)
+        seperator = " "
+        candidate_user_markers = []
+        candidate_item_markers = []
+        # candidate_local_markers = []
+        # new_tokens = [str(i) for i in tokens]
+
+        n_grams = []
+        for i in range(1, 4):
+            i_grams = [seperator.join(gram) for gram in ngrams(tokens, i)]
+            n_grams.extend(i_grams)
+
+        for gram in n_grams:
+            if gram in self.m_user_word_score_map:
+                candidate_user_markers.append((gram, self.m_user_word_score_map[gram]))
+            
+            if gram in self.m_item_word_score_map[item_id]:
+                candidate_item_markers.append((gram, self.m_item_word_score_map[item_id][gram]))
+        
+        candidate_user_markers.sort(key=lambda x:x[1], reverse=True)
+        candidate_user_markers = [marker for (marker, score) in candidate_user_markers]
+        new_review_user = seperator.join(tokens)
+
+        local_marker_list = []
+        replace_user_marker_list = []
+        for marker in candidate_user_markers:
+            # print("user marker", marker)
+            if marker in new_review_user:
+                new_review_user = new_review_user.replace(marker, "")
+                local_marker_list.append(marker)
+                
+                replace_user_marker_list.append(marker)
+        
+        candidate_item_markers.sort(key=lambda x:x[1], reverse=True)
+        candidate_item_markers = [marker for (marker, score) in candidate_item_markers]
+        new_review_item = seperator.join(tokens)
+        for marker in candidate_item_markers:
+            # print("item marker", marker)
+            if marker in new_review_item:
+                new_review_item = new_review_item.replace(marker, "")
+                local_marker_list.append(marker)
+                    # remove_item_marker_list.append(marker)
+
+        new_review_local = seperator.join(local_marker_list)
+        
+        new_review_user = tokenizer.tokenize(new_review_user)
+        user_word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in new_review_user]
+
+        new_review_item = tokenizer.tokenize(new_review_item)
+        item_word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in new_review_item]
+
+        new_review_local = tokenizer.tokenize(new_review_local)
+        local_word_ids = [vocab_obj.m_w2i.get(w, vocab_obj.m_w2i['<unk>']) for w in new_review_local]
+
+        user_word_ids = [int(i) for i in user_word_ids]
+        item_word_ids = [int(i) for i in item_word_ids]
+        local_word_ids = [int(i) for i in local_word_ids]
+
+        if len(user_word_ids) == 0:
+            user_word_ids = [random.choice(token_ids)]
+
+        if len(item_word_ids) == 0:
+            item_word_ids = [random.choice(token_ids)]
+            
+        if len(local_word_ids) == 0:
+            local_word_ids = [random.choice(token_ids)]
+
+        return user_word_ids, item_word_ids, local_word_ids
+        
+    def f_load_user_word_score(self, vocab_obj, word_score_file):
+        f = open(word_score_file, "rb")
+        word_score_map = pickle.load(f)
+        
+        print("init user word num", len(word_score_map))
+
+        self.m_user_word_score_map = word_score_map
+
+    def f_load_item_word_score(self, vocab_obj, word_score_file):
+        f = open(word_score_file, "rb")
+        item_word_score_map = pickle.load(f)
+
+        print("init item num", len(item_word_score_map))
+        # self.m_item_word_score_map = defaultdict(dict)
+        self.m_item_word_score_map = item_word_score_map
+    
     def f_create_vocab(self, vocab_obj, train_reviews):
         tokenizer = TweetTokenizer(preserve_case=False)
 
@@ -301,12 +355,12 @@ class _Data():
         vocab_obj.f_set_item(global_item2iid)
         # print("vocab size", vocab_obj.m_vocab_size)
 
-        # train_data = _CLOTHING(args, vocab_obj, review_corpus['train'])
-        # # valid_data = Amazon(args, vocab_obj, review_corpus['valid'])
-        # valid_data = _CLOTHING_TEST(args, vocab_obj, review_corpus['valid'])
+        train_data = _CLOTHING(args, vocab_obj, review_corpus['train'])
+        # valid_data = Amazon(args, vocab_obj, review_corpus['valid'])
+        valid_data = _CLOTHING_TEST(args, vocab_obj, review_corpus['valid'])
 
-        train_data = _MOVIE(args, vocab_obj, review_corpus['train'])
-        valid_data = _MOVIE_TEST(args, vocab_obj, review_corpus['valid'])
+        # train_data = _MOVIE(args, vocab_obj, review_corpus['train'])
+        # valid_data = _MOVIE_TEST(args, vocab_obj, review_corpus['valid'])
 
         return train_data, valid_data, vocab_obj
 
@@ -363,8 +417,7 @@ class _Vocab():
         return self.m_w2i['<unk>']
 
 
-
-### python data.py --data_dir "../data/amazon/clothing" --data_file "processed_amazon_clothing_shoes_jewelry.pickle" --output_file "pro_v2.pickle"
+### python perturb_data.py --data_dir "../data/amazon/movie" --data_file "processed_amazon_movie.pickle" --output_file "pro.pickle"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -376,6 +429,8 @@ if __name__ == "__main__":
     parser.add_argument('--min_occ', type=int, default=5)
     parser.add_argument('--data_file', type=str, default="raw_data.pickle")
     parser.add_argument('--output_file', type=str, default=".pickle")
+    parser.add_argument('--user_word_file', type=str, default="user_word_score.pickle")
+    parser.add_argument('--item_word_file', type=str, default="item_word_score.pickle")
 
     args = parser.parse_args()
 

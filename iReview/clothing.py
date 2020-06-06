@@ -29,6 +29,7 @@ class _CLOTHING(Dataset):
         self.m_max_seq_len = args.max_seq_length
         self.m_min_occ = args.min_occ
         self.m_batch_size = args.batch_size
+        self.m_random_flag = args.random_flag
     
         # self.m_vocab_file = "amazon_vocab.json"
         self.m_max_line = 1e10
@@ -37,7 +38,7 @@ class _CLOTHING(Dataset):
         self.m_eos_id = vocab_obj.eos_idx
         self.m_pad_id = vocab_obj.pad_idx
         self.m_vocab_size = vocab_obj.vocab_size
-        # self.m_vocab = vocab_obj
+        self.m_vocab = vocab_obj
     
         self.m_sample_num = len(review_corpus)
         print("sample num", self.m_sample_num)
@@ -56,9 +57,13 @@ class _CLOTHING(Dataset):
         self.m_user_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_item_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
+        # self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
+        # self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
         
+        self.m_user_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_item_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_local_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+
         self.m_user2uid = {}
         self.m_item2iid = {}
 
@@ -95,25 +100,62 @@ class _CLOTHING(Dataset):
 
             input_review = word_ids_review[:self.m_max_seq_len] 
             input_review = [self.m_sos_id] + input_review
-            target_review = word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_review = [self.m_sos_id] + word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
 
             self.m_length_batch_list[batch_index].append(length_list[sample_index])
 
             self.m_input_batch_list[batch_index].append(input_review)
             self.m_target_batch_list[batch_index].append(target_review)
 
-            RRe_review = review_obj.m_res_review_words
-            self.m_RRe_batch_list[batch_index].append(RRe_review)
+            user_p_review = review_obj.m_user_perturb_words
+            target_user_p_review = [self.m_sos_id] + user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_user_p_target_batch_list[batch_index].append(target_user_p_review)
 
-            ARe_review = review_obj.m_avg_review_words
-            self.m_ARe_batch_list[batch_index].append(ARe_review)
+            item_p_review = review_obj.m_item_perturb_words
+            target_item_p_review = [self.m_sos_id] + item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_item_p_target_batch_list[batch_index].append(target_item_p_review)
+
+            local_p_review = review_obj.m_local_perturb_words
+            target_local_p_review = [self.m_sos_id] + local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_local_p_target_batch_list[batch_index].append(target_local_p_review)
+
+            # print("=="*10)
+            # print("target")
+            # # for target_idx_tmp, _ in enumerate(target_review):
+            #     # target_i_tmp = target_review[target_idx_tmp]
+            # for word_idx in target_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("user")
+            # # for target_idx_tmp, _ in enumerate(target_user_p_review):
+            #     # target_i_tmp = target_user_p_review[target_idx_tmp]
+            # for word_idx in target_user_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("item")
+            # # for target_idx_tmp, _ in enumerate(target_item_p_review):
+            # #     target_i_tmp = target_item_p_review[target_idx_tmp]
+            # for word_idx in target_item_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+
+            # print("local")
+            # # for target_idx_tmp, _ in enumerate(target_local_p_review):
+            # #     target_i_tmp = target_local_p_review[target_idx_tmp]
+            # for word_idx in target_local_p_review:
+            #     print(self.m_vocab.m_i2w[str(word_idx)], end=" ")
+            # print("\n")
+            # print("=="*10)
 
             user_id = int(review_obj.m_user_id)
             self.m_user_batch_list[batch_index].append(user_id)
 
             item_id = int(review_obj.m_item_id)
             self.m_item_batch_list[batch_index].append(item_id)
-
+            
+        # exit()
         print("loaded data")
 
     def __iter__(self):
@@ -125,76 +167,78 @@ class _CLOTHING(Dataset):
             batch_index = batch_index_list[batch_i]
             # s_time = datetime.datetime.now()
 
-            length_batch = self.m_length_batch_list[batch_index]
+            random_flag = self.m_random_flag
+            if random_flag == 4:
+                random_flag = random.randint(0, 3)
+
             input_batch = self.m_input_batch_list[batch_index]
+            input_length_batch = self.m_length_batch_list[batch_index]
+
             user_batch = self.m_user_batch_list[batch_index]
+
+            # print("user_batch 1", user_batch)
             item_batch = self.m_item_batch_list[batch_index]
-            target_batch = self.m_target_batch_list[batch_index]
 
-            RRe_batch = self.m_RRe_batch_list[batch_index]
-            ARe_batch = self.m_ARe_batch_list[batch_index]
+            target_batch = None
+            if random_flag == 0:
+                target_batch = self.m_target_batch_list[batch_index]
+            elif random_flag == 1:
+                target_batch = self.m_local_p_target_batch_list[batch_index]
+            elif random_flag == 2:
+                target_batch = self.m_user_p_target_batch_list[batch_index]
+            elif random_flag == 3:
+                target_batch = self.m_item_p_target_batch_list[batch_index]
         
-            input_batch_iter = []
-            user_batch_iter = []
-            item_batch_iter = []
-            target_batch_iter = []
-            RRe_batch_iter = []
-            ARe_batch_iter = [] 
+            input_iter = []
+            input_length_iter = input_length_batch
+            user_iter = []
+            item_iter = []
+            target_iter = []
+            target_length_iter = []
 
-            max_length_batch = max(length_batch)
+            for target_i in target_batch:
+                target_length_iter.append(len(target_i))
+
+            max_input_length_iter = max(input_length_iter)
+            max_target_length_iter = max(target_length_iter)
+
             # print("max_length_batch", max_length_batch)
 
             for sent_i, _ in enumerate(input_batch):
                 # ss_time = datetime.datetime.now()
 
-                length_i = length_batch[sent_i]
-                
+                input_length_i = input_length_iter[sent_i]
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
+
+                input_i_iter.extend([self.m_pad_id]*(max_input_length_iter-input_length_i))
+                input_iter.append(input_i_iter)
+
+                target_length_i = target_length_iter[sent_i]
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
 
-                RRe_i_iter = np.zeros(self.m_vocab_size)
-                RRe_index = list(RRe_batch[sent_i].keys())
-                RRe_val = list(RRe_batch[sent_i].values())
-                RRe_i_iter[RRe_index] = RRe_val
-
-                ARe_i_iter = np.zeros(self.m_vocab_size)
-                ARe_index = list(ARe_batch[sent_i].keys())
-                ARe_val = list(ARe_batch[sent_i].values())
-                ARe_i_iter[ARe_index] = ARe_val
-
-                input_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-                target_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-
-                input_batch_iter.append(input_i_iter)
-
-                target_batch_iter.append(target_i_iter)
-
-                ARe_batch_iter.append(ARe_i_iter)
-                RRe_batch_iter.append(RRe_i_iter)
+                target_i_iter.extend([self.m_pad_id]*(max_target_length_iter-target_length_i))
+                target_iter.append(target_i_iter)
 
                 # e_time = datetime.datetime.now()
                 # print("yield batch data duration", e_time-ss_time)
 
-            user_batch_iter = user_batch
-            item_batch_iter = item_batch
+            user_iter = user_batch
+            item_iter = item_batch
 
-            # RRe_batch_iter = RRe_batch.toarray()
-            # ARe_batch_iter = ARe_batch.toarray()
+            # print("user_batch 3", user_batch_iter)
 
-            # print(sum(RRe_batch_iter[0]))
-            # ts_time = datetime.datetime.now()
-            length_batch_tensor = torch.from_numpy(np.array(length_batch)).long()
-            input_batch_iter_tensor = torch.from_numpy(np.array(input_batch_iter)).long()
-            user_batch_iter_tensor = torch.from_numpy(np.array(user_batch_iter)).long()
-            item_batch_iter_tensor = torch.from_numpy(np.array(item_batch_iter)).long()
-            target_batch_iter_tensor = torch.from_numpy(np.array(target_batch_iter)).long()
-            
-            # RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
-            # print(np.array(RRe_batch_iter).dtype)
-            RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
-            ARe_batch_iter_tensor = torch.from_numpy(np.array(ARe_batch_iter))
+            input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
+            input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
 
-            yield input_batch_iter_tensor, length_batch_tensor,user_batch_iter_tensor, item_batch_iter_tensor, target_batch_iter_tensor, length_batch_tensor
+            user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
+            item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
+
+            # print("user_batch 4", user_iter_tensor)
+
+            target_length_iter_tensor = torch.from_numpy(np.array(target_length_iter)).long()
+            target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
+
+            yield input_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_length_iter_tensor, random_flag
 
 class _CLOTHING_TEST(Dataset):
     def __init__(self, args, vocab_obj, review_corpus):
@@ -204,6 +248,7 @@ class _CLOTHING_TEST(Dataset):
         self.m_max_seq_len = args.max_seq_length
         self.m_min_occ = args.min_occ
         self.m_batch_size = args.batch_size
+        self.m_random_flag = args.random_flag
     
         self.m_max_line = 1e10
 
@@ -229,8 +274,10 @@ class _CLOTHING_TEST(Dataset):
         self.m_user_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_item_batch_list = [[] for i in range(self.m_batch_num)]
         self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
+        
+        self.m_user_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_item_p_target_batch_list = [[] for i in range(self.m_batch_num)]
+        self.m_local_p_target_batch_list = [[] for i in range(self.m_batch_num)]
         
         self.m_user2uid = {}
         self.m_item2iid = {}
@@ -268,18 +315,24 @@ class _CLOTHING_TEST(Dataset):
 
             input_review = word_ids_review[:self.m_max_seq_len] 
             input_review = [self.m_sos_id] + input_review
-            target_review = word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
+            target_review = [self.m_sos_id] + word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
 
             self.m_length_batch_list[batch_index].append(length_list[sample_index])
 
             self.m_input_batch_list[batch_index].append(input_review)
             self.m_target_batch_list[batch_index].append(target_review)
 
-            RRe_review = review_obj.m_res_review_words
-            self.m_RRe_batch_list[batch_index].append(RRe_review)
+            user_p_review = review_obj.m_user_perturb_words
+            target_user_p_review = [self.m_sos_id] + user_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_user_p_target_batch_list[batch_index].append(target_user_p_review)
 
-            ARe_review = review_obj.m_avg_review_words
-            self.m_ARe_batch_list[batch_index].append(ARe_review)
+            item_p_review = review_obj.m_item_perturb_words
+            target_item_p_review = [self.m_sos_id] + item_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_item_p_target_batch_list[batch_index].append(target_item_p_review)
+
+            local_p_review = review_obj.m_local_perturb_words
+            target_local_p_review = [self.m_sos_id] + local_p_review[:self.m_max_seq_len]+[self.m_eos_id]
+            self.m_local_p_target_batch_list[batch_index].append(target_local_p_review)
 
             user_id = int(review_obj.m_user_id)
             uid = self.m_user2uid[user_id]
@@ -289,6 +342,7 @@ class _CLOTHING_TEST(Dataset):
             iid = self.m_item2iid[item_id]
             self.m_item_batch_list[batch_index].append(iid)
         
+            # exit()
         print("load valid data", len(self.m_item_batch_list), len(self.m_user_batch_list), len(self.m_input_batch_list), len(self.m_target_batch_list))
 
         print("loaded data")
@@ -302,73 +356,71 @@ class _CLOTHING_TEST(Dataset):
             batch_index = batch_index_list[batch_i]
             # s_time = datetime.datetime.now()
 
-            length_batch = self.m_length_batch_list[batch_index]
+            random_flag = self.m_random_flag
+            if random_flag == 4:
+                random_flag = random.randint(0, 3)
+ 
             input_batch = self.m_input_batch_list[batch_index]
+            input_length_batch = self.m_length_batch_list[batch_index]
+
             user_batch = self.m_user_batch_list[batch_index]
             item_batch = self.m_item_batch_list[batch_index]
-            target_batch = self.m_target_batch_list[batch_index]
 
-            RRe_batch = self.m_RRe_batch_list[batch_index]
-            ARe_batch = self.m_ARe_batch_list[batch_index]
-        
-            input_batch_iter = []
-            user_batch_iter = []
-            item_batch_iter = []
-            target_batch_iter = []
-            RRe_batch_iter = []
-            ARe_batch_iter = [] 
+            target_batch = None
+            if random_flag == 0:
+                target_batch = self.m_target_batch_list[batch_index]
+            elif random_flag == 1:
+                target_batch = self.m_local_p_target_batch_list[batch_index]
+            elif random_flag == 2:
+                target_batch = self.m_user_p_target_batch_list[batch_index]
+            elif random_flag == 3:
+                target_batch = self.m_item_p_target_batch_list[batch_index]
 
-            max_length_batch = max(length_batch)
-            # print("max_length_batch", max_length_batch)
+
+            input_iter = []
+            input_length_iter = input_length_batch
+            user_iter = []
+            item_iter = []
+            target_iter = []
+            target_length_iter = []
+
+            for target_i in target_batch:
+                target_length_iter.append(len(target_i))
+
+            max_input_length_iter = max(input_length_iter)
+            max_target_length_iter = max(target_length_iter)
 
             for sent_i, _ in enumerate(input_batch):
-                # ss_time = datetime.datetime.now()
 
-                length_i = length_batch[sent_i]
-                
+                input_length_i = input_length_iter[sent_i]
                 input_i_iter = copy.deepcopy(input_batch[sent_i])
+
+                input_i_iter.extend([self.m_pad_id]*(max_input_length_iter-input_length_i))
+                input_iter.append(input_i_iter)
+
+                target_length_i = target_length_iter[sent_i]
                 target_i_iter = copy.deepcopy(target_batch[sent_i])
 
-                RRe_i_iter = np.zeros(self.m_vocab_size)
-                RRe_index = list(RRe_batch[sent_i].keys())
-                RRe_val = list(RRe_batch[sent_i].values())
-                RRe_i_iter[RRe_index] = RRe_val
-
-                ARe_i_iter = np.zeros(self.m_vocab_size)
-                ARe_index = list(ARe_batch[sent_i].keys())
-                ARe_val = list(ARe_batch[sent_i].values())
-                ARe_i_iter[ARe_index] = ARe_val
-
-                input_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-                target_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-
-                input_batch_iter.append(input_i_iter)
-
-                target_batch_iter.append(target_i_iter)
-
-                ARe_batch_iter.append(ARe_i_iter)
-                RRe_batch_iter.append(RRe_i_iter)
+                target_i_iter.extend([self.m_pad_id]*(max_target_length_iter-target_length_i))
+                target_iter.append(target_i_iter)
 
                 # e_time = datetime.datetime.now()
                 # print("yield batch data duration", e_time-ss_time)
 
-            user_batch_iter = user_batch
-            item_batch_iter = item_batch
+            # print("random flag", random_flag)
 
-            # RRe_batch_iter = RRe_batch.toarray()
-            # ARe_batch_iter = ARe_batch.toarray()
+            user_iter = user_batch
+            item_iter = item_batch
 
             # print(sum(RRe_batch_iter[0]))
             # ts_time = datetime.datetime.now()
-            length_batch_tensor = torch.from_numpy(np.array(length_batch)).long()
-            input_batch_iter_tensor = torch.from_numpy(np.array(input_batch_iter)).long()
-            user_batch_iter_tensor = torch.from_numpy(np.array(user_batch_iter)).long()
-            item_batch_iter_tensor = torch.from_numpy(np.array(item_batch_iter)).long()
-            target_batch_iter_tensor = torch.from_numpy(np.array(target_batch_iter)).long()
-            
-            # RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
-            # print(np.array(RRe_batch_iter).dtype)
-            RRe_batch_iter_tensor = torch.from_numpy(np.array(RRe_batch_iter))
-            ARe_batch_iter_tensor = torch.from_numpy(np.array(ARe_batch_iter))
+            input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
+            input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
 
-            yield input_batch_iter_tensor, length_batch_tensor, user_batch_iter_tensor, item_batch_iter_tensor, target_batch_iter_tensor, length_batch_tensor
+            user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
+            item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
+
+            target_length_iter_tensor = torch.from_numpy(np.array(target_length_iter)).long()
+            target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
+            
+            yield input_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_length_iter_tensor, random_flag

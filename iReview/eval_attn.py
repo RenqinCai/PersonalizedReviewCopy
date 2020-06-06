@@ -3,6 +3,8 @@ import torch
 from nltk.translate.bleu_score import sentence_bleu
 import os
 from metric import get_bleu
+import torch.nn.functional as F
+import torch.nn as nn
 
 class _EVAL(object):
     def __init__(self, vocab_obj, args, device):
@@ -61,8 +63,6 @@ class _EVAL(object):
 
                 target_batch_gpu = target_batch.to(self.m_device)
                 target_length_batch_gpu = target_length_batch.to(self.m_device)
-                # RRe_batch = RRe_batch.to(self.m_device)
-                # ARe_batch = ARe_batch.to(self.m_device)
 
                 input_de_batch_gpu = target_batch_gpu[:, :-1]
                 input_de_length_batch_gpu = target_length_batch_gpu-1
@@ -84,7 +84,6 @@ class _EVAL(object):
 
                 max_seq_len = max(target_length_batch-1)
                 samples, z = self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
-                # samples, z = self.f_decode_text(mean, max_seq_len)
 
                 lens = target_length_batch-1
                 lens = lens.tolist()
@@ -133,13 +132,33 @@ class _EVAL(object):
             # print("input seq size", input_seq.size())
             input_embedding = self.m_network.m_embedding(input_seq)
             
-            input_embedding = input_embedding+var_de
+            input_embedding = input_embedding
 
             input_embedding = input_embedding.unsqueeze(1)
 
             # print("input_embedding", input_embedding.size())
             output, hidden = self.m_network.m_decoder_rnn(input_embedding, hidden)
 
+            output = output.squeeze(1)
+            z_attn = torch.cat([output, z], dim=-1)
+            s_attn = torch.cat([output, s], dim=-1)
+            l_attn = torch.cat([output, l], dim=-1)
+
+            z_attn_score = self.m_network.m_attn(z_attn)
+            s_attn_score = self.m_network.m_attn(s_attn)
+            l_attn_score = self.m_network.m_attn(l_attn)
+
+            attn_score = F.softmax(torch.cat([z_attn_score, s_attn_score, l_attn_score], dim=-1), dim=-1)
+            # print("attn_score", attn_score)
+            
+            var_de = attn_score[:, 0].unsqueeze(1)*z
+            var_de = var_de + attn_score[:, 1].unsqueeze(1)*s
+            var_de = var_de + attn_score[:, 2].unsqueeze(1)*l
+
+            var_de = self.m_network.m_latent2hidden(var_de)
+
+            output = output + var_de
+            output = output.unsqueeze(1)
             logits = self.m_network.m_output2vocab(output)
 
             input_seq = self._sample(logits)
@@ -161,7 +180,7 @@ class _EVAL(object):
                 hidden = hidden[:, running_seqs]
                 var_de = var_de[running_seqs]
                 # repeat_hidden_0 = repeat_hidden_0[running_seqs]
-                output = output[running_seqs]
+                output = output[running_seqs].squeeze(1)
 
                 running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
 
@@ -169,10 +188,13 @@ class _EVAL(object):
                 s = s[running_seqs]
                 l = l[running_seqs]
                 
-                var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
-                var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
+                
+
+                # var_de_flag = self.m_network.m_decoder_gate(output.squeeze(1))
+                # var_de = self.m_network.m_latent2hidden((1-var_de_flag)*z+var_de_flag*s+l)
 
             t += 1
+        # exit()
 
         return generations, z
 

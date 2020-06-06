@@ -9,18 +9,22 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from train import TRAINER
 
-from data import _Data
-# from perturb_data import _Data
+from perturb_data_clothing import _Data
 # from movie import _MOVIE, _MOVIE_TEST
 from clothing import _CLOTHING, _CLOTHING_TEST
-from model import REVIEWDI
+# from model import REVIEWDI
+from model_transformer import _NETWORK
 import datetime
 # from inference import INFER
-from inference_new import INFER
+# from inference_new import INFER
 from optimizer import Optimizer
 from logger import Logger
 import random
-from eval_new import _EVAL
+# from eval import _EVAL
+# from eval_new import _EVAL
+# from eval_attn import _EVAL
+from eval_transformer import _EVAL
+from infer_attn import INFER
 
 def set_seed(seed):
     random.seed(seed)
@@ -54,7 +58,7 @@ def main(args):
     print("vocab_size", vocab_obj.vocab_size)
     print("user num", vocab_obj.user_size)
     ### get model
-    network = REVIEWDI(vocab_obj, args, device=device)
+    network = _NETWORK(vocab_obj, args, device=device)
 
     ### add count parameters
     total_param_num = 0
@@ -128,13 +132,16 @@ if __name__ == "__main__":
     parser.add_argument('--eps', type=float, default=0.0001)
 
     parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="IREVIEW")
+    parser.add_argument('--model_name', type=str, default="IREVIEW_V2")
+    parser.add_argument('--hcdmg1', action="store_true", default=False)
 
+    parser.add_argument('--decode', type=str, default="attn")
     parser.add_argument('--train', action="store_true", default=False)
     parser.add_argument('--eval', action="store_true", default=False)
     parser.add_argument('--test', action="store_true", default=False)
     parser.add_argument('--print_interval', type=int, default=400)
-    
+    parser.add_argument('--random_flag', type=int, default=0)
+
     args = parser.parse_args()
 
     # args.rnn_type = args.rnn_type.lower()

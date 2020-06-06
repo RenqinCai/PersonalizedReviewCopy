@@ -52,20 +52,27 @@ class INFER(object):
 
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, length_batch, user_batch, item_batch, target_batch, _ in train_data:
+            for input_length_batch, input_batch, user_batch, item_batch, target_length_batch, target_batch, random_flag in train_data:
 
                 input_batch_gpu = input_batch.to(self.m_device)
+                input_length_batch_gpu = input_length_batch.to(self.m_device)
+
                 user_batch_gpu = user_batch.to(self.m_device)
                 item_batch_gpu = item_batch.to(self.m_device)
-                length_batch_gpu = length_batch.to(self.m_device)
+                
                 target_batch_gpu = target_batch.to(self.m_device)
-                # RRe_batch_gpu = RRe_batch.to(self.m_device)
-                # ARe_batch_gpu = ARe_batch.to(self.m_device)
+                target_length_batch_gpu = target_length_batch.to(self.m_device)
 
-                logits_gpu, z_mean_gpu, z_logv_gpu, z_gpu, s_mean_gpu, s_logv_gpu, s_gpu, variational_hidden = self.m_network(input_batch_gpu, length_batch_gpu, user_batch_gpu)
+                input_de_batch_gpu = target_batch
+                input_de_length_batch_gpu = target_length_batch
+
+                # logits_gpu, z_mean_gpu, z_logv_gpu, z_gpu, s_mean_gpu, s_logv_gpu, s_gpu, ARe_pred_gpu, RRe_pred_gpu = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, random_flag)
+                
+                logits_gpu, z_mean_gpu, z_logv_gpu, z_gpu, s_mean_gpu, s_logv_gpu, s_gpu, l_mean_gpu, l_logv_gpu, l_gpu, variational_hidden_gpu = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, random_flag)
 
                 z_mean = z_mean_gpu.cpu()
                 s_mean = s_mean_gpu.cpu()
+                l_mean = l_mean_gpu.cpu()
 
                 for i, user_idx in enumerate(user_batch):
                     user_idx = user_idx.item()
@@ -91,11 +98,17 @@ class INFER(object):
                     self.m_item_embedding[iid] += s_mean_i.detach()
                     self.m_item_num[iid] += 1.0
 
+                    l_mean_i = l_mean[i]
+                    self.m_l_embedding += l_mean_i.detach()
+                    self.m_l_num += 1.0
+
         e_time = datetime.datetime.now()
         print("batch user item duration", e_time-s_time)
 
         self.m_user_embedding = self.m_user_embedding/self.m_user_num
         self.m_item_embedding = self.m_item_embedding/self.m_item_num
+
+        self.m_l_embedding = self.m_l_embedding/self.m_l_num
             
     def f_init_user_item(self, eval_data):
         # self.m_user_embedding = self.m_network.m_user_embedding.weight
@@ -113,6 +126,9 @@ class INFER(object):
 
         self.m_user_num = torch.zeros((user_num, 1))
         self.m_item_num = torch.zeros((item_num, 1))
+
+        self.m_l_embedding = torch.zeros(1, latent_size)
+        self.m_l_num = 0
 
     def f_inference(self, train_data, eval_data):
         self.m_mean_loss = 0
@@ -136,7 +152,7 @@ class INFER(object):
         bleu_score_list = []
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, length_batch, user_batch, item_batch, target_batch, _ in eval_data:
+            for input_length_batch, input_batch, user_batch, item_batch, target_length_batch, target_batch, random_flag in train_data:
 
                 if batch_index > 0:
                     break
@@ -144,12 +160,16 @@ class INFER(object):
                 batch_index += 1
 
                 input_batch_gpu = input_batch.to(self.m_device)
+                input_length_batch_gpu = input_length_batch.to(self.m_device)
+
                 user_batch_gpu = user_batch.to(self.m_device)
                 item_batch_gpu = item_batch.to(self.m_device)
-                length_batch_gpu = length_batch.to(self.m_device)
+                
                 target_batch_gpu = target_batch.to(self.m_device)
-                # RRe_batch_gpu = RRe_batch.to(self.m_device)
-                # ARe_batch_gpu = ARe_batch.to(self.m_device)
+                target_length_batch_gpu = target_length_batch.to(self.m_device)
+
+                input_de_batch_gpu = target_batch
+                input_de_length_batch_gpu = target_length_batch
 
                 print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
@@ -157,8 +177,9 @@ class INFER(object):
                 # print("item_batch", item_batch)
                 z_mean_gpu = self.m_user_embedding[user_batch].to(self.m_device)
                 s_mean_gpu = self.m_item_embedding[item_batch].to(self.m_device)
+                l_mean_gpu = self.m_l_embedding.to(self.m_device)
 
-                mean = z_mean_gpu+s_mean_gpu
+                mean = z_mean_gpu+s_mean_gpu+l_mean_gpu
                 # mean = torch.cat([z_mean_gpu, s_mean_gpu], dim=1)
                 
                 max_seq_len = max(length_batch)
@@ -166,30 +187,6 @@ class INFER(object):
             
                 print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
-                # logits, z_mean, z_logv, z, s_mean, s_logv, s, ARe_pred, RRe_pred = self.m_network(input_batch, user_batch, length_batch)
-                # for i, user_idx in enumerate(user_batch):
-                #     user_idx = user_idx.item()
-
-                #     item_idx = item_batch[i].item()
-
-                #     uid = user_idx
-                #     iid = item_idx
-                #     # uid = eval_user2uid[user_idx]
-                #     # iid = eval_item2iid[item_idx]
-                #     print(uid, iid)
-
-                #     z_mean_gpu = self.m_user_embedding[uid].to(self.m_device)
-                #     s_mean_gpu = self.m_item_embedding[iid].to(self.m_device)
-
-                #     z_mean_gpu = z_mean_gpu.unsqueeze(0)
-                #     s_mean_gpu = s_mean_gpu.unsqueeze(0)
-                    
-                #     mean = torch.cat([z_mean_gpu, s_mean_gpu], dim=1)
-                    
-                #     max_seq_len = max(length_batch)
-                #     samples, z = self.f_decode_text(mean, max_seq_len)
-                
-                #     print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
     def f_decode_text(self, z, max_seq_len, n=4):
         if z is None:

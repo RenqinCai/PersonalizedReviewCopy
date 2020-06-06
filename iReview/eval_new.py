@@ -63,8 +63,8 @@ class _EVAL(object):
                 item_batch_gpu = item_batch.to(self.m_device)
                 length_batch_gpu = length_batch.to(self.m_device)
                 target_batch_gpu = target_batch.to(self.m_device)
-                # RRe_batch_gpu = RRe_batch.to(self.m_device)
-                # ARe_batch_gpu = ARe_batch.to(self.m_device)
+                RRe_batch_gpu = RRe_batch.to(self.m_device)
+                ARe_batch_gpu = ARe_batch.to(self.m_device)
 
                 logits_gpu, z_mean_gpu, z_logv_gpu, z_gpu, s_mean_gpu, s_logv_gpu, s_gpu, ARe_pred_gpu, RRe_pred_gpu = self.m_network(input_batch_gpu, user_batch_gpu, length_batch_gpu)
 
