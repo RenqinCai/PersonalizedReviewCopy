@@ -34,7 +34,7 @@ class _NETWORK(nn.Module):
 
         # self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
 
-        user_embedding = torch.randn(self.m_latent_size, self.m_cluster_num).to(self.m_device)
+        user_embedding = torch.zeros(self.m_latent_size, self.m_cluster_num).to(self.m_device)
         cluster_size = torch.zeros(self.m_cluster_num).to(self.m_device)
         avg_user_embedding = user_embedding.clone()
         user_cluster_prob = torch.zeros(self.m_user_size, self.m_cluster_num).to(self.m_device)
@@ -51,7 +51,7 @@ class _NETWORK(nn.Module):
         print("self.m_device", self.m_device)
         # self.m_user_num = torch.zeros((self.m_user_size, 1)).to(self.m_device)
         
-        self.m_item_num = torch.zeros((self.m_item_size, 1)).to(self.m_device)
+        self.m_item_cnt = torch.zeros((self.m_item_size, 1)).to(self.m_device)
 
         self.m_generator = _GEN_NETWORK(self.m_embedding, self.m_output2vocab, self.m_user_embedding, self.m_user_cluster_prob, self.m_item_embedding, vocab_obj, args, self.m_device)
 
@@ -84,22 +84,21 @@ class _NETWORK(nn.Module):
         dist = user_hidden_sum-2*user_hidden@self.m_user_embedding+user_embedding_sum
 
         _, cluster_ids = (-dist).max(1)
-        
-        for i, cluster_id in enumerate(cluster_ids):
-            cluster_id = cluster_id.item()
-            user_id = user_ids[i].item()
 
-            self.m_user_cluster_prob[user_id, cluster_id] += 1.0
-            # self.m_user_embedding.weight.data[user_id] += user_hidden[i].detach()
-            # self.m_user_num[user_id] += 1.0
-        # exit()
+        user_one_hot = F.one_hot(user_ids, self.m_user_size).type(user_hidden.dtype)
+        cluster_one_hot = F.one_hot(cluster_ids, self.m_cluster_num).type(user_hidden.dtype)
+
+        user_cluster_cnt = user_one_hot.transpose(0, 1) @ cluster_one_hot
+        self.m_user_cluster_prob.add_(user_cluster_cnt)
+
+
         item_hidden = self.m_user_item_encoder.m_item_encoder(reviews, review_lens)
+        item_one_hot = F.one_hot(item_ids, self.m_item_size).type(item_hidden.dtype)
+        item_embedding_sum = item_one_hot.transpose(0, 1) @ item_hidden
 
-        for i, item_id in enumerate(item_ids):
-            item_id = item_id.item()
-            self.m_item_embedding.weight.data[item_id] += item_hidden[i].detach()
-            self.m_item_num[item_id] += 1.0
+        self.m_item_embedding.weight.data.add_(item_embedding_sum)
 
+        self.m_item_cnt.add_(torch.sum(item_one_hot, dim=0).unsqueeze(1))
 
     def normalize_user_item(self):
         # self.m_user_embedding.weight.data = self.m_user_embedding.weight.data/self.m_user_num
@@ -109,7 +108,7 @@ class _NETWORK(nn.Module):
         # print("user_cnt", user_cnt[0])
         self.m_user_cluster_prob /= user_cnt
 
-        self.m_item_embedding.weight.data = self.m_item_embedding.weight.data/self.m_item_num
+        self.m_item_embedding.weight.data = self.m_item_embedding.weight.data/self.m_item_cnt
 
         self.m_item_embedding.weight.requires_grad=False
         self.m_embedding.weight.requires_grad = False
@@ -270,31 +269,42 @@ class _ENC_NETWORK(nn.Module):
         self.m_output2vocab = output2vocab
         
     def forward(self, reviews, review_lens, user_ids, item_ids):
-
+        
+        # print("--"*20)
+        # print("user embedding", self.m_user_embedding[:, 0])
+        # print("user embedding", self.m_user_embedding[:, 1])
+        # print("--"*20)
         ### obtain user representation
-        user_hidden = self.m_user_encoder(reviews, review_lens)
-        user_hidden_sum = user_hidden.pow(2).sum(1, keepdim=True)
-        user_embedding_sum = self.m_user_embedding.pow(2).sum(0, keepdim=True)
-        cross_term = -2*user_hidden@self.m_user_embedding
 
+        ### user_hidden: batch_size*hidden_size
+        user_hidden = self.m_user_encoder(reviews, review_lens)
+
+        ### user_hidden_sum: batch_size*1
+        user_hidden_sum = user_hidden.pow(2).sum(1, keepdim=True)
+        
+        ### user_embedding_sum: 1*cluster_size
+        user_embedding_sum = self.m_user_embedding.pow(2).sum(0, keepdim=True)
+
+        ### m_user_embedding: latent_size*cluster_size
+
+        ### cross_term: batch_size*cluster_size
+        cross_term = -2*user_hidden@self.m_user_embedding
+        
+        ### batch_size*cluster_size
         dist = user_hidden_sum+cross_term+user_embedding_sum
 
         _, embed_ind = (-dist).max(1)
         embed_onehot = F.one_hot(embed_ind, self.m_cluster_num).type(user_hidden.dtype)
         user_quantize = self.embed_code(embed_ind)
 
-        # print("user_hidden", user_hidden[:,0])
-        # print("user embedding", self.m_user_embedding[:, 0])
-        # print("cross term", cross_term[0])
-        # print("user_hidden_sum", user_hidden_sum)
+        # print("--"*20)
         # print("user_embedding_sum", user_embedding_sum)
-        
-        # print("dist", dist[0])
-        # print('embed_ind', embed_ind)
-
-        # exit()
+        # print("cross_term", cross_term)
+        # print("embed_ind", embed_ind)
+        # print("--"*20)
 
         if self.training:
+            # print("---"*20, "training")
             self.m_cluster_size.data.mul_(self.m_decay).add_(1-self.m_decay, embed_onehot.sum(0))
             embed_sum = user_hidden.transpose(0, 1) @ embed_onehot
             self.m_avg_user_embedding.data.mul_(self.m_decay).add_(1-self.m_decay, embed_sum)
@@ -392,3 +402,53 @@ class _DECODER(nn.Module):
         output = output.contiguous()
 
         return output
+
+class _USER_ITEM_ENCODER(nn.Module):
+    def __init__(self, vocab_obj, args, device):
+        super(_USER_ITEM_ENCODER, self).__init__()
+
+        self.m_device = device
+        self.m_user_size = vocab_obj.user_size
+        self.m_item_size = vocab_obj.item_size
+        self.m_vocab_size = vocab_obj.vocab_size
+
+        self.m_hidden_size = args.hidden_size
+        self.m_layers_num = args.layers_num
+        self.m_dropout_rate = args.dropout
+        self.m_latent_size = args.latent_size
+        self.m_cluster_num = args.cluster_num
+        self.m_decay = args.decay
+        # self.m_eps = args.eps
+        self.m_eps = 1e-10
+
+        self.m_embedding_size = args.embedding_size
+        self.m_commitment = args.commitment
+
+        self.m_embedding = nn.Embedding(self.m_vocab_size, self.m_embedding_size)
+        self.m_embedding_dropout = nn.Dropout(p=self.m_dropout_rate)
+
+        self.m_user_encoder = _ENCODER(self.m_embedding, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
+        self.m_item_encoder = _ENCODER(self.m_embedding, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
+
+        self.m_user_decoder = _DECODER(self.m_embedding, self.m_embedding_size, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
+        self.m_item_decoder = _DECODER(self.m_embedding, self.m_embedding_size, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
+
+        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+
+        self = self.to(self.m_device)
+
+    def forward(self, reviews, review_lens, user_ids, item_ids):
+
+        ### obtain user representation
+        user_hidden = self.m_user_encoder(reviews, review_lens)
+
+        ### obtain item representation
+        item_hidden = self.m_item_encoder(reviews, review_lens)
+
+        user_output = self.m_user_decoder(reviews, user_hidden)
+        item_output = self.m_item_decoder(reviews, item_hidden)
+
+        user_logits = self.m_output2vocab(user_output.view(-1, user_output.size(2)))
+        item_logits = self.m_output2vocab(item_output.view(-1, item_output.size(2)))
+
+        return user_logits, item_logits
