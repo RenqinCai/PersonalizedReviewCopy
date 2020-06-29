@@ -14,7 +14,7 @@ from data import _DATA
 # from movie import _MOVIE, _MOVIE_TEST
 from clothing import _CLOTHING, _CLOTHING_TEST
 from yelp_edu import _YELP, _YELP_TEST
-from model import _NETWORK
+from model import _NETWORK, _USER_ITEM_ENCODER
 import datetime
 # from inference import INFER
 # from inference_new import INFER
@@ -90,15 +90,30 @@ def main(args):
             # de_parameters = network.module.m_generator.parameters()
             # de_optimizer = _OPTIM(de_parameters, args)
 
+        pretrain_encoder = _USER_ITEM_ENCODER(vocab_obj, args, device)
+        pretrain_parameters = list(pretrain_encoder.parameters())
+
+        pretrain_optimizer = _OPTIM(pretrain_parameters, args)
+
         en_parameters = list(network.m_embedding.parameters()) + list(network.m_user_item_encoder.parameters()) + list(network.m_output2vocab.parameters())
         en_optimizer = _OPTIM(en_parameters, args)
 
-        de_parameters = network.m_generator.parameters()
-        # print("generator parameter", de_parameters)
-        de_optimizer = _OPTIM(de_parameters, args)
+        # print("=="*20)
+        # print("user item encoder parameter")
+        # for name, p in network.m_user_item_encoder.named_parameters():
+        #     print(name)
 
+        de_parameters = network.m_generator.parameters()
+        de_optimizer = _OPTIM(de_parameters, args)
+        # print("=="*20)
+        # print("generator parameter")
+        # for name, p in network.m_generator.named_parameters():
+        #     print(name)
+        # print("=="*20)
+        
+        # exit()
         trainer = _TRAINER(vocab_obj, args, device)
-        trainer.f_train(train_data, valid_data, network, en_optimizer, de_optimizer, logger_obj)
+        trainer.f_train(train_data, valid_data, pretrain_encoder, pretrain_optimizer, network, en_optimizer, de_optimizer, logger_obj)
 
         logger_obj.f_close_writer()
 

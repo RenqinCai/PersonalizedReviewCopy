@@ -36,7 +36,12 @@ class _EVAL(object):
             model_name = os.path.join(self.m_model_path, model_file)
             print("model name", model_name)
             check_point = torch.load(model_name)
+            # for k, v in check_point['model'].items():
+            #     print(k)
             network.load_state_dict(check_point['model'])
+
+        print("pad", self.m_pad_idx)
+        print("eos", self.m_eos_idx)
 
         self.m_network = network
 
@@ -96,7 +101,6 @@ class _EVAL(object):
             for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
                 # print("batch_index", batch_index)
 
-                
                 batch_size = input_batch.size(0)
 
                 input_batch_gpu = input_batch.to(self.m_device)
@@ -116,7 +120,9 @@ class _EVAL(object):
 
                 input_user_cluster_prob_gpu = self.m_user_cluster_prob[user_batch_gpu]
 
-                # print("input_user_cluster_prob_gpu", input_user_cluster_prob_gpu[0])
+                print("---"*20)
+                print("input_user_cluster_prob_gpu 0", input_user_cluster_prob_gpu[0])
+                print("input_user_cluster_prob_gpu 1", input_user_cluster_prob_gpu[1])
                 
                 max_seq_len = max(target_length_batch-1)
                 
@@ -140,13 +146,6 @@ class _EVAL(object):
                 total_review_num += batch_size
 
                 batch_index += 1
-
-                # print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-                # print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-                # if batch_index > 1:
-                #     break
         
         mean_bleu_score = np.mean(bleu_score_list)
         print("generating new reviews bleu score", mean_bleu_score)
@@ -252,17 +251,35 @@ class _EVAL(object):
             # print("--"*20)
             # print("input_embedding", input_embedding.size())
             # print("var_de", var_de.size())
+            if (var_de != var_de).any():
+                print("inf var_de", var_de)
+
+            if torch.isnan(var_de).any():
+                print("var_de", var_de)
+
             input_embedding = input_embedding+var_de
 
             input_embedding = input_embedding.unsqueeze(1)
 
+            print(input_embedding.size())
+            # print("input_seq", input_seq)
             if torch.isnan(input_embedding).any():
                 print("input_embedding", input_embedding)
+
+            if (input_embedding != input_embedding).any():
+                print("inf input embedding", input_embedding)
 
             ## print("input_embedding", input_embedding.size())
             output, hidden = self.m_network.m_generator.m_decoder_rnn(input_embedding, hidden)
 
             logits = self.m_network.m_generator.m_output2vocab(output)
+            # print("logits", logits)
+
+            if torch.isnan(logits).any():
+                print("logits", logits)
+
+            if (logits != logits).any():
+                print("inf logits", logits)
 
             input_seq = self._sample(logits)
 
@@ -285,12 +302,12 @@ class _EVAL(object):
                 # repeat_hidden_0 = repeat_hidden_0[running_seqs]
                 output = output[running_seqs].squeeze(1)
 
-                running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
-
                 s = s[running_seqs]
 
                 z_cluster_prob = z_cluster_prob[running_seqs]
 
+                running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
+                
                 user_attn_score = self.m_network.m_generator.m_attn(output) @ self.m_user_embedding
 
                 item_attn = self.m_network.m_generator.m_attn(output) * s
@@ -302,7 +319,7 @@ class _EVAL(object):
                 var_de = (attn_score[:, :-1]*z_cluster_prob) @ (self.m_user_embedding.transpose(0, 1))
 
                 # var_de = attn_score[:, 0].unsqueeze(1)*z
-                var_de = var_de + attn_score[:, 1].unsqueeze(1)*s
+                var_de = var_de + attn_score[:, -1].unsqueeze(1)*s
 
                 var_de = self.m_network.m_generator.m_latent2output(var_de)
 
