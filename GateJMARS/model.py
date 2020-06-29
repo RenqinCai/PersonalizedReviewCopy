@@ -19,6 +19,9 @@ class _NETWORK(nn.Module):
         self.m_user_size = vocab_obj.user_size
         self.m_item_size = vocab_obj.item_size
 
+        print("user size", self.m_user_size)
+        print("item size", self.m_item_size)
+
         self.m_embedding_size = args.embedding_size
         self.m_layers_num = args.layers_num
         self.m_latent_size = args.latent_size
@@ -28,7 +31,8 @@ class _NETWORK(nn.Module):
         self.m_embedding = nn.Embedding(self.m_vocab_size, self.m_embedding_size)
         self.m_embedding_dropout = nn.Dropout(p=self.m_dropout_rate)
 
-        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        # self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size, bias=False)
 
         self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
         self.m_item_embedding = nn.Embedding(self.m_item_size, self.m_latent_size)
@@ -36,7 +40,7 @@ class _NETWORK(nn.Module):
         self.m_user_embedding.weight.data.fill_(0)
         self.m_item_embedding.weight.data.fill_(0)
 
-        # self.m_output2vocab.weight = self.m_embedding.weight
+        # self.m_output2vocab .weight = self.m_embedding.weight
 
         self.m_user_item_encoder = _ENC_NETWORK(self.m_embedding, self.m_output2vocab, vocab_obj, args, self.m_device)
 
@@ -146,7 +150,7 @@ class _GEN_NETWORK(nn.Module):
         # self = self.to(self.m_device)
 
     def f_gumbel_sample(self, shape, eps=1e-20):
-        U = torch.rand(shape).cuda()
+        U = torch.rand(shape).to(self.m_device)
         return -torch.log(-torch.log(U+eps)+eps)
 
     def f_gumbel_softmax(self, logits, temp=1e-3):

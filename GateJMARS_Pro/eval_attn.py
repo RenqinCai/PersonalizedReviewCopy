@@ -251,7 +251,6 @@ class _EVAL(object):
             gate_flag_step_i = self.m_network.m_generator.m_de_gate(output)
             gate_flag_step_i = self.m_network.m_generator.f_gumbel_softmax(gate_flag_step_i) 
 
-
             logits = self.m_network.m_generator.m_output2vocab(output)
 
             input_seq = self._sample(logits)

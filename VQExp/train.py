@@ -152,10 +152,10 @@ class _TRAINER(object):
                 last_train_loss = self.m_mean_pre_train_loss
 
             elif last_train_loss < self.m_mean_pre_train_loss:
-                print("!"*10, "error training loss increase", "!"*10, "last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_en_train_loss)
+                print("!"*10, "error training loss increase", "!"*10, "last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_pre_train_loss)
                 break
             else:
-                print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_en_train_loss)
+                print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_pre_train_loss)
                 last_train_loss = self.m_mean_pre_train_loss
 
         self.f_initialize_network(train_data, pretrain_newtork, network)
@@ -299,7 +299,6 @@ class _TRAINER(object):
                 en_NLL_loss_list = []
 
         self.m_mean_pre_train_loss = np.mean(pre_train_loss_list)
-
 
     def f_train_en_epoch(self, train_data, network, en_optimizer, logger_obj):
         en_NLL_loss_list = []

@@ -30,7 +30,7 @@ class _NETWORK(nn.Module):
         self.m_embedding = nn.Embedding(self.m_vocab_size, self.m_embedding_size)
         self.m_embedding_dropout = nn.Dropout(p=self.m_dropout_rate)
 
-        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size, bias=False)
 
         # self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
 
@@ -90,7 +90,6 @@ class _NETWORK(nn.Module):
 
         user_cluster_cnt = user_one_hot.transpose(0, 1) @ cluster_one_hot
         self.m_user_cluster_prob.add_(user_cluster_cnt)
-
 
         item_hidden = self.m_user_item_encoder.m_item_encoder(reviews, review_lens)
         item_one_hot = F.one_hot(item_ids, self.m_item_size).type(item_hidden.dtype)
@@ -269,12 +268,6 @@ class _ENC_NETWORK(nn.Module):
         self.m_output2vocab = output2vocab
         
     def forward(self, reviews, review_lens, user_ids, item_ids):
-        
-        # print("--"*20)
-        # print("user embedding", self.m_user_embedding[:, 0])
-        # print("user embedding", self.m_user_embedding[:, 1])
-        # print("--"*20)
-        ### obtain user representation
 
         ### user_hidden: batch_size*hidden_size
         user_hidden = self.m_user_encoder(reviews, review_lens)
@@ -297,11 +290,11 @@ class _ENC_NETWORK(nn.Module):
         embed_onehot = F.one_hot(embed_ind, self.m_cluster_num).type(user_hidden.dtype)
         user_quantize = self.embed_code(embed_ind)
 
-        # print("--"*20)
-        # print("user_embedding_sum", user_embedding_sum)
+        print("--"*20)
+        print("user_embedding_sum", user_embedding_sum)
         # print("cross_term", cross_term)
         # print("embed_ind", embed_ind)
-        # print("--"*20)
+        print("--"*20)
 
         if self.training:
             # print("---"*20, "training")

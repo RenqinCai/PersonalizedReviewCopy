@@ -40,6 +40,11 @@ class _EVAL(object):
 
         self.m_network = network
 
+        for name, param in self.m_network.named_parameters():
+            if param.requires_grad:
+                if torch.isnan(param.data).any():
+                    print(name, param.data)
+
     def f_eval(self, train_data, eval_data):
         print("eval new")
         self.f_eval_new(train_data, eval_data)
@@ -210,7 +215,9 @@ class _EVAL(object):
         if z is None:
             assert "z is none"
 
-        m = m.expand(z.size())
+        # m = m.expand(z.size())
+        m_new = m.repeat(z.size(0), 1)
+        # print("m size", m.size())
 
         batch_size = z.size(0)
 
@@ -267,7 +274,8 @@ class _EVAL(object):
 
             running_mask = (input_seq != self.m_eos_idx).bool()
             running_seqs = running_seqs.masked_select(running_mask)
-
+            # print("=="*25)
+            # print(running_seqs)
             if len(running_seqs) > 0:
                 input_seq = input_seq[running_seqs]
 
@@ -276,37 +284,30 @@ class _EVAL(object):
                 # repeat_hidden_0 = repeat_hidden_0[running_seqs]
                 output = output[running_seqs].squeeze(1)
 
-                running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
-
                 z = z[running_seqs]
                 s = s[running_seqs]
-                m = m[running_seqs]
-                
-                m_z_s = torch.cat([m.unsqueeze(1), s.unsqueeze(1), (z+s).unsqueeze(1)], dim=1)
+                m_new = m_new[running_seqs]
 
+                m_new = m_new.contiguous()
+                # print("m", m_new)
+                # print("m.size", m_new.size())
+
+                running_seqs = torch.arange(0, len(running_seqs)).long().to(self.m_device)
+
+                # m_z_s = torch.cat([z.unsqueeze(1), s.unsqueeze(1), (z+s).unsqueeze(1)], dim=1)
                 gate_flag_step_i = self.m_network.m_generator.m_de_gate(output)
+                # print("gate_flag_step_i", gate_flag_step_i)
                 gate_flag_step_i = self.m_network.m_generator.f_gumbel_softmax(gate_flag_step_i)
 
+                m_z_s = torch.cat([m_new.unsqueeze(1), s.unsqueeze(1), (z+s).unsqueeze(1)], dim=1)
                 var_de = torch.sum(m_z_s*gate_flag_step_i.unsqueeze(-1), dim=1)
-
-                # z_attn = torch.cat([output, z], dim=-1)
-                # s_attn = torch.cat([output, s], dim=-1)
-
-                # z_attn_score = self.m_network.m_generator.m_attn(z_attn)
-                # s_attn_score = self.m_network.m_generator.m_attn(s_attn)
-
-                # attn_score = F.softmax(torch.cat([z_attn_score, s_attn_score], dim=-1), dim=-1)
-                # # print("attn_score", attn_score)
-                
-                # var_de = attn_score[:, 0].unsqueeze(1)*z
-                # var_de = var_de + attn_score[:, 1].unsqueeze(1)*s
 
                 var_de = self.m_network.m_generator.m_latent2output(var_de)
 
                 # print("var_de", var_de.size())
                 
             t += 1
-
+        # exit()
         return generations, z
 
     def _sample(self, dist, mode="greedy"):

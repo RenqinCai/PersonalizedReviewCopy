@@ -77,24 +77,11 @@ def main(args):
         logger_obj = _LOGGER()
         logger_obj.f_add_writer(args)
 
-        # if torch.cuda.device_count() > 1:
-        #     print("... let us use", torch.cuda.device_count(), "GPUs!")
-        #     network = nn.DataParallel(network)
-
-        # print("=="*20)
-        # print("device", network.cuda())
-
-            # en_parameters = list(network.module.m_embedding.parameters()) + list(network.module.m_user_item_encoder.parameters()) + list(network.module.m_output2vocab.parameters())
-            # en_optimizer = _OPTIM(en_parameters, args)
-
-            # de_parameters = network.module.m_generator.parameters()
-            # de_optimizer = _OPTIM(de_parameters, args)
-
         en_parameters = list(network.m_embedding.parameters()) + list(network.m_user_item_encoder.parameters()) + list(network.m_output2vocab.parameters())
         en_optimizer = _OPTIM(en_parameters, args)
 
-        # de_parameters = network.m_generator.parameters()
-        de_parameters = list(network.m_embedding.parameters()) + list(network.m_generator.parameters()) + list(network.m_output2vocab.parameters()) +list(network.m_user_embedding.parameters()) + list(network.m_item_embedding.parameters())
+        de_parameters = list(network.m_generator.parameters())
+        # de_parameters = list(network.m_embedding.parameters()) + list(network.m_generator.parameters()) + list(network.m_output2vocab.parameters()) +list(network.m_user_embedding.parameters()) + list(network.m_item_embedding.parameters())
         de_optimizer = _OPTIM(de_parameters, args)
 
         trainer = _TRAINER(vocab_obj, args, device)
