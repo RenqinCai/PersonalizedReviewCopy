@@ -3,7 +3,7 @@ import datetime
 import os
 import torch
 
-class Logger():
+class _LOGGER():
 	def __init__(self):
 		self.m_tensor_writer = None
 		self.m_io_writer = None
@@ -13,7 +13,7 @@ class Logger():
 		### '%H_%M_%d_%m'
 		file_time = datetime.datetime.now().strftime('%m_%d_%H_%M')
 		data_name = args.data_name
-		output_file = myhost+"_"+file_time+str(data_name)
+		output_file = myhost+"_"+file_time+"_"+str(data_name)
 
 		# print("output_file", output_file)
 		output_dir = "../log/"+args.model_name+"/"

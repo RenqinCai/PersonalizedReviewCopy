@@ -19,7 +19,8 @@ import pickle
 import string
 import datetime
 from BGoogle import BGoogle
-from yelp import Yelp
+from yelp_edu import _YELP, _YELP_TEST
+from cloth import _CLOTH, _CLOTH_TEST
 
 def load_sent(path):
     sents = []
@@ -203,47 +204,64 @@ class _Data():
         print("len(i2w)", len(i2w))
         vocab_obj.f_set_vocab(w2i, i2w)
 
-    # def f_build_yelp(self, sents, path, size):
-    #     v = ['<pad>', '<go>', '<eos>', '<unk>', '<blank>']
-    #     words = [w for s in sents for w in s]
-    #     cnt = Counter(words)
-    #     n_unk = len(words)
-    #     for w, c in cnt.most_common(size):
-    #         v.append(w)
-    #         n_unk -= c
-    #     cnt['<unk>'] = n_unk
+    # def f_load_data_yelp(self, args):
 
-    #     with open(path, 'w') as f:
-    #         for w in v:
-    #             f.write('{}\t{}\n'.format(w, cnt[w]))
+    #     train_data_dir = os.path.join(args.data_dir, 'train.txt')
+    #     train_sents = load_sent(train_data_dir)
+
+    #     valid_data_dir = os.path.join(args.data_dir, 'valid.txt')
+    #     valid_sents = load_sent(valid_data_dir)
+
+    #     vocab_obj = _Vocab()
+        
+    #     vocab_file = os.path.join(args.data_dir, 'vocab.txt')
+    #     with open(vocab_file) as f:
+    #         for line in f:
+    #             w = line.split()[0]
+    #             wid = len(vocab_obj.m_w2i)
+
+    #             if w == '<go>':
+    #                 w = '<sos>'
+                
+    #             vocab_obj.m_w2i[w] = wid
+    #             vocab_obj.m_i2w[wid] = w
+
+    #     voc_size = len(vocab_obj.m_w2i)
+    #     vocab_obj.m_vocab_size = voc_size
+
+    #     train_data = Yelp(args, vocab_obj, train_sents)
+    #     valid_data = Yelp(args, vocab_obj, valid_sents)
+
+    #     return train_data, valid_data, vocab_obj
 
     def f_load_data_yelp(self, args):
+        self.m_data_name = args.data_name
+        # self.m_vocab_file = self.m_data_name+".vocab.json"
+        self.m_vocab_file = args.vocab_file
 
-        train_data_dir = os.path.join(args.data_dir, 'train.txt')
-        train_sents = load_sent(train_data_dir)
+        train_data_file = args.data_dir+"/train.pickle"
+        valid_data_file = args.data_dir+"/valid.pickle"
+        test_data_file = args.data_dir+"/test.pickle"
+        
+        train_df = pd.read_pickle(train_data_file)
+        valid_df = pd.read_pickle(valid_data_file)
+        test_df = pd.read_pickle(test_data_file)
 
-        valid_data_dir = os.path.join(args.data_dir, 'valid.txt')
-        valid_sents = load_sent(valid_data_dir)
+        user_num = train_df.userid.nunique()
+
+        with open(os.path.join(args.data_dir, self.m_vocab_file), 'r',encoding='utf8') as f:
+            vocab = json.loads(f.read())
 
         vocab_obj = _Vocab()
+        vocab_obj.f_set_vocab(vocab['w2i'], vocab['i2w'])
+        vocab_obj.f_set_user_num(user_num)
         
-        vocab_file = os.path.join(args.data_dir, 'vocab.txt')
-        with open(vocab_file) as f:
-            for line in f:
-                w = line.split()[0]
-                wid = len(vocab_obj.m_w2i)
+        print("vocab size", vocab_obj.m_vocab_size)
 
-                if w == '<go>':
-                    w = '<sos>'
-                
-                vocab_obj.m_w2i[w] = wid
-                vocab_obj.m_i2w[wid] = w
+        train_data = _YELP(args, vocab_obj, train_df)
+        # valid_data = _YELP_TEST(args, vocab_obj, valid_df)
+        valid_data = _YELP(args, vocab_obj, valid_df)
 
-        voc_size = len(vocab_obj.m_w2i)
-        vocab_obj.m_vocab_size = voc_size
-
-        train_data = Yelp(args, vocab_obj, train_sents)
-        valid_data = Yelp(args, vocab_obj, valid_sents)
 
         return train_data, valid_data, vocab_obj
 
@@ -266,19 +284,24 @@ class _Data():
 
         return train_data, valid_data, vocab_obj
 
-    def f_load_data_amazon(self, args):
-        self.m_data_name = args.data_name
-        self.m_vocab_file = self.m_data_name+".vocab.json"
-
-        with open(os.path.join(args.data_dir, args.data_file), 'rb') as file:
-            data = pickle.load(file)
+    def f_load_data_cloth(self, args):
         
-        with open(os.path.join(args.data_dir, self.m_vocab_file), 'r') as file:
-            vocab = json.load(file)
+        self.m_data_name = args.data_name
+        # self.m_vocab_file = self.m_data_name+".vocab.json"
+        self.m_vocab_file = args.vocab_file
 
-        review_corpus = data['review']
-        item_corpus = data['item']
-        user_num = data['user']
+        train_data_file = args.data_dir+"/train.pickle"
+        valid_data_file = args.data_dir+"/valid.pickle"
+        test_data_file = args.data_dir+"/test.pickle"
+        
+        train_df = pd.read_pickle(train_data_file)
+        valid_df = pd.read_pickle(valid_data_file)
+        test_df = pd.read_pickle(test_data_file)
+
+        user_num = train_df.userid.nunique()
+
+        with open(os.path.join(args.data_dir, self.m_vocab_file), 'r',encoding='utf8') as f:
+            vocab = json.loads(f.read())
 
         vocab_obj = _Vocab()
         vocab_obj.f_set_vocab(vocab['w2i'], vocab['i2w'])
@@ -286,8 +309,8 @@ class _Data():
         
         print("vocab size", vocab_obj.m_vocab_size)
 
-        train_data = Amazon(args, vocab_obj, review_corpus['train'], item_corpus)
-        valid_data = Amazon(args, vocab_obj, review_corpus['valid'], item_corpus)
+        train_data = _CLOTH(args, vocab_obj, train_df)
+        valid_data = _CLOTH(args, vocab_obj, valid_df)
 
         return train_data, valid_data, vocab_obj
 
@@ -329,135 +352,6 @@ class _Vocab():
     @property
     def unk_idx(self):
         return self.m_w2i['<unk>']
-
-class Amazon(Dataset):
-    def __init__(self, args, vocab_obj, review_corpus, item_corpus):
-        super().__init__()
-
-        self.m_data_dir = args.data_dir
-        self.m_max_seq_len = args.max_seq_length
-        self.m_min_occ = args.min_occ
-        self.m_batch_size = args.batch_size
-    
-        # self.m_vocab_file = "amazon_vocab.json"
-        self.m_max_line = 1e10
-
-        self.m_sos_id = vocab_obj.sos_idx
-        self.m_eos_id = vocab_obj.eos_idx
-        self.m_pad_id = vocab_obj.pad_idx
-        self.m_vocab_size = vocab_obj.vocab_size
-    
-        self.m_sample_num = len(review_corpus)
-        print("sample num", self.m_sample_num)
-
-        self.m_batch_num = int(self.m_sample_num/self.m_batch_size)
-        print("batch num", self.m_batch_num)
-
-        ###get length
-        
-        length_list = []
-        self.m_length_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_input_batch_list = [[] for i in range(self.m_batch_num)]
-        # self.m_user_batch_list = [[] for i in range(self.m_batch_num)]
-        self.m_target_batch_list = [[] for i in range(self.m_batch_num)]
-        # self.m_RRe_batch_list = [[] for i in range(self.m_batch_num)]
-        # self.m_ARe_batch_list = [[] for i in range(self.m_batch_num)]
-
-        for sample_index in range(self.m_sample_num):
-            review_obj = review_corpus[sample_index]
-            word_ids_review = review_obj.m_review_words
-
-            input_review = word_ids_review[:self.m_max_seq_len]
-            len_review = len(input_review) + 1
-
-            length_list.append(len_review)
-
-        # sorted_length_list = sorted(length_list, reverse=True)
-        sorted_index_len_list = sorted(range(len(length_list)), key=lambda k: length_list[k], reverse=True)
-
-        for i, sample_index in enumerate(sorted_index_len_list):
-            batch_index = int(i/self.m_batch_size)
-            if batch_index >= self.m_batch_num:
-                break
-            
-            review_obj = review_corpus[sample_index]
-            word_ids_review = review_obj.m_review_words
-
-            input_review = word_ids_review[:self.m_max_seq_len] 
-            input_review = [self.m_sos_id] + input_review
-            target_review = word_ids_review[:self.m_max_seq_len]+[self.m_eos_id]
-
-            self.m_length_batch_list[batch_index].append(length_list[sample_index])
-
-            self.m_input_batch_list[batch_index].append(input_review)
-            self.m_target_batch_list[batch_index].append(target_review)
-
-            # RRe_review = review_obj.m_res_review_words
-            # self.m_RRe_batch_list[batch_index].append(RRe_review)
-            
-            # item_id = review_obj.m_item_id
-            # ARe_item = item_corpus[item_id]
-            # self.m_ARe_batch_list[batch_index].append(ARe_item)
-
-            # user_id = int(review_obj.m_user_id)
-            # self.m_user_batch_list[batch_index].append(user_id)
-
-    def __iter__(self):
-        print("shuffling")
-        
-        temp = list(zip(self.m_length_batch_list, self.m_input_batch_list, self.m_target_batch_list))
-        random.shuffle(temp)
-        
-        self.m_length_batch_list, self.m_input_batch_list, self.m_target_batch_list = zip(*temp)
-
-        for batch_index in range(self.m_batch_num):
-            # s_time = datetime.datetime.now()
-
-            length_batch = self.m_length_batch_list[batch_index]
-            input_batch = self.m_input_batch_list[batch_index]
-            target_batch = self.m_target_batch_list[batch_index]
-
-            input_batch_iter = []
-            target_batch_iter = []
-           
-            max_length_batch = max(length_batch)
-            # print("max_length_batch", max_length_batch)
-
-            for sent_i, _ in enumerate(input_batch):
-                # ss_time = datetime.datetime.now()
-
-                length_i = length_batch[sent_i]
-                
-                input_i_iter = copy.deepcopy(input_batch[sent_i])
-                target_i_iter = copy.deepcopy(target_batch[sent_i])
-
-                # print(RRe_index, RRe_val)
-                # print(RRe_i_iter[RRe_index])
-
-                input_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-                target_i_iter.extend([self.m_pad_id]*(max_length_batch-length_i))
-
-                input_batch_iter.append(input_i_iter)
-
-                target_batch_iter.append(target_i_iter)
-
-                # e_time = datetime.datetime.now()
-                # print("data batch duration", e_time-ss_time)
-
-            # print(sum(RRe_batch_iter[0]))
-            # ts_time = datetime.datetime.now()
-            length_batch_tensor = torch.from_numpy(np.array(length_batch)).long()
-            input_batch_iter_tensor = torch.from_numpy(np.array(input_batch_iter)).long()
-
-            target_batch_iter_tensor = torch.from_numpy(np.array(target_batch_iter)).long()
-
-            # e_time = datetime.datetime.now()
-            # print("tensor data duration", e_time-ts_time)
-            # print("data duration", e_time-s_time)
-            # print(RRe_batch_iter_tensor.size(), "RRe_batch_iter_tensor", RRe_batch_iter_tensor.sum(dim=1))
-
-            yield input_batch_iter_tensor, target_batch_iter_tensor, length_batch_tensor
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

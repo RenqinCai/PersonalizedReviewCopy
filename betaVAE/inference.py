@@ -6,7 +6,7 @@ from metric import get_bleu
 from beam import Beam
 import torch.nn.functional as F
 
-class INFER(object):
+class _INFER(object):
     def __init__(self, vocab_obj, args, device):
         super().__init__()
 
@@ -14,6 +14,7 @@ class INFER(object):
         self.m_eos_idx = vocab_obj.eos_idx
         self.m_pad_idx = vocab_obj.pad_idx
         self.m_i2w = vocab_obj.m_i2w
+        self.m_w2i = vocab_obj.m_w2i
 
         self.m_epoch = args.epochs
         self.m_batch_size = args.batch_size 
@@ -52,7 +53,7 @@ class INFER(object):
 
         for input_batch, target_batch, length_batch in eval_data:
             
-            if batch_index > 10:
+            if batch_index > 1:
                 continue
             batch_index += 1
 
@@ -66,7 +67,7 @@ class INFER(object):
 
             logp, z_mean, z_logv, z, _, _ = self.m_network(input_batch, length_batch)
 
-            KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
+            # KL_loss = -0.5 * torch.sum(1 + z_logv - z_mean.pow(2) - z_logv.exp())
 
             # print("z_mean", z_mean)
             # print("z", z)
@@ -105,6 +106,34 @@ class INFER(object):
 
         mean_bleu_score = np.mean(bleu_score_list)
         print("bleu score", mean_bleu_score)
+
+    def f_search_text(self, input_text, train_data):
+        idx = word2idx(input_text, self.m_w2i)
+
+        batch_index = 0
+        for input_batch, target_batch, length_batch in train_data:
+            batch_index += 1
+            batch_size = input_batch.size()[0]
+            for i in range(batch_size):
+                # print("i ", i)
+                input_batch_i = target_batch[i]
+                input_len = input_batch_i.size(0)
+                for j in range(input_len):
+                    # print(input_batch_i[j])
+                    # print(input_batch_i[j].item(), idx[j])
+                    # print("--"*10)
+                    # exit()
+                    if input_batch_i[j].item() == idx[j]:
+                        print("++"*2, batch_index, "++"*10)
+                        print(i, j, "same word ", self.m_i2w[str(input_batch_i[j].item())])
+                        print(input_batch_i)
+                        print(idx2word(input_batch_i.unsqueeze(0), self.m_i2w, self.m_pad_idx))
+                        print("--"*10)
+                        if j == input_len-1:
+                            print("same")
+                            print(idx2word(input_batch_i.unsqueeze(0)))
+                    else:
+                        break
 
     def f_decode_text_beam(self, z, max_seq_len, n=4):
         if z is None:
@@ -273,7 +302,7 @@ class INFER(object):
             input_seq = input_seq.unsqueeze(1)
             input_embedding = self.m_network.m_embedding(input_seq)
 
-            if input_embedding.size(0) == repeat_hidden_0.size(0):
+            if input_embedding.size(0) != repeat_hidden_0.size(0):
                 print("input_embedding", input_embedding.size())
                 print("repeat_hidden_0", repeat_hidden_0.size())
 
@@ -356,12 +385,25 @@ class INFER(object):
 
         return save_to
 
-def idx2word(idx, i2w, pad_idx):
+def word2idx(words, w2i):
+    idx = []
+    words = words.strip().split(" ")
+    print("input ", words)
+    for word_i in words:
+        wid = w2i[word_i]
+        idx.append(wid)
+    print("idx ", idx)
+    return idx
 
-    sent_str = [str()]*len(idx)
+def idx2word(idx, i2w, pad_idx):
+    print_sent_num = 10
+    # sent_str = [str()]*len(idx)
+    sent_str = [str()]*print_sent_num
     # print(i2w)
     for i, sent in enumerate(idx):
         # print(" "*10, "*"*10)
+        if i >= print_sent_num:
+            break
         for word_id in sent:
 
             if word_id == pad_idx:

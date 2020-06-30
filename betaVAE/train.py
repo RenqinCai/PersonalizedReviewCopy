@@ -10,19 +10,16 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 import random
 
-from metric import Reconstruction_loss, KL_loss_standard, KL_loss_customize
-from model import REVIEWDI
-from inference import INFER
+from metric import _REC_LOSS, _KL_LOSS_STANDARD, _KL_LOSS_CUSTOMIZE
+from model import _NETWORK
+from inference import _INFER
 
-class TRAINER(object):
+class _TRAINER(object):
 
     def __init__(self, vocab_obj, args, device):
         super().__init__()
 
         self.m_pad_idx = vocab_obj.pad_idx
-
-        self.m_Recon_loss_fn = None
-        self.m_KL_loss_fn = None
 
         self.m_save_mode = True
         self.m_mean_train_loss = 0
@@ -39,8 +36,8 @@ class TRAINER(object):
         self.m_anneal_func = args.anneal_func
         print("args.anneal_func", args.anneal_func)
         
-        self.m_Recon_loss_fn = Reconstruction_loss(ignore_index=self.m_pad_idx, device=self.m_device)
-        self.m_KL_loss_z_fn = KL_loss_standard(self.m_device, self.m_anneal_func)
+        self.m_Recon_loss_fn = _REC_LOSS(ignore_index=self.m_pad_idx, device=self.m_device)
+        self.m_KL_loss_z_fn = _KL_LOSS_STANDARD(self.m_device)
     
         self.m_train_step = 0
         self.m_valid_step = 0
@@ -69,6 +66,19 @@ class TRAINER(object):
             # else:
             #     self.m_grads[name] += grad
         return hook
+    
+    def f_get_KL_weight(self, step):
+        weight = 0
+        if self.m_anneal_func == "beta":
+            weight = 0.1
+        elif self.m_anneal_func == "logistic":
+            k = 0.001
+            x0 = 2000
+            weight = float(1/(1+np.exp(-k*(step-x0))))
+        else:
+            raise NotImplementedError
+
+        return weight
 
     def f_save_model(self, epoch, network, optimizer):
         checkpoint = {'model':network.state_dict(),
@@ -76,10 +86,6 @@ class TRAINER(object):
             'optimizer': optimizer
         }
 
-        # now_time = datetime.datetime.now()
-        # time_name = str(now_time.day)+"_"+str(now_time.month)+"_"+str(now_time.hour)+"_"+str(now_time.minute)
-
-        # model_name = os.path.join(self.m_model_path, self.m_model_name+"/model_best_"+time_name+".pt")
         torch.save(checkpoint, self.m_model_file)
 
     def f_train(self, train_data, eval_data, network, optimizer, logger_obj):
@@ -144,7 +150,7 @@ class TRAINER(object):
         else:
             raise NotImplementedError
         
-        for input_batch, target_batch, length_batch in data:
+        for input_batch, target_batch, length_batch, _, _ in data:
             
             if train_val_flag == "train":
                 self.m_train_step += 1
@@ -160,33 +166,22 @@ class TRAINER(object):
             length_batch = length_batch.to(self.m_device)
             target_batch = target_batch.to(self.m_device)
         
-            logp, z_mean, z_logv, z, init_de_hidden, last_en_hidden = network(input_batch, length_batch)
-
-            # z_mean.register_hook(self.f_save_grad('z_mean'))
-            # z.register_hook(self.f_save_grad('z'))
-
-            # init_de_hidden.register_hook(self.f_save_grad('init_de_hidden'))
-            # last_en_hidden.register_hook(self.f_save_grad('last_en_hidden'))
+            logp, z_mean, z_logv, z, last_en_hidden, init_de_hidden = network(input_batch, length_batch)
 
             ### NLL loss
             NLL_loss = self.m_Recon_loss_fn(logp, target_batch, length_batch)
-            # print("NLL_loss", NLL_loss)
-            # NLL_loss = NLL_loss/torch.sum(length_batch)
-            NLL_loss = NLL_loss/len(z)
-            # print("NLL_loss", NLL_loss)
             
-            KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean, z_logv, self.m_train_step)
+            NLL_loss = NLL_loss/len(z)
+            
+            KL_weight_z = self.f_get_KL_weight(0)
+            KL_loss_z = self.m_KL_loss_z_fn(z_mean, z_logv)
 
-            # KL_loss_z, KL_weight_z = self.m_KL_loss_z_fn(z_mean, z_logv, self.m_train_step, self.m_k, self.m_x0, anneal_func=self.m_anneal_func)
             KL_loss_z = KL_loss_z/len(z)
-            # print("KL loss", KL_loss_z)
-            # exit()
-            # KL_loss_z = KL_loss_z/torch.sum(length_batch)
-
+            
             self.m_KL_weight = KL_weight_z
            
             loss = (NLL_loss+KL_weight_z*KL_loss_z)
-
+            # exit()
             if train_val_flag == "train":
                 logger_obj.f_add_scalar2tensorboard("train/KL_loss", KL_loss_z.item(), self.m_train_iteration)
                 logger_obj.f_add_scalar2tensorboard("train/KL_weight", KL_weight_z, self.m_train_iteration)
@@ -206,18 +201,7 @@ class TRAINER(object):
                 self.m_train_rec_loss_list.append(NLL_loss.item())
                 self.m_train_kl_loss_list.append(KL_loss_z.item())
                 self.m_train_iteration += 1
-                # if self.m_train_iteration %4000 == 0:
-                #     print(self.m_train_iteration, " training batch")
-                #     print("--"*10)
-
-                #     print("init_de_hidden", self.m_grads['init_de_hidden'])
-                #     print("last_en_hidden", self.m_grads['last_en_hidden'])
-                #     print("z", z)
-                #     print("encoder gradient", network.m_encoder_rnn.weight_ih_l0.grad)
-                #     print("m_hidden2mean_z.weight", network.m_hidden2mean_z.weight.grad)
-                #     print("m_latent2hidden.weight", network.m_latent2hidden.weight.grad)
-                #     print("decoder gradient", network.m_decoder_rnn.weight_ih_l0.grad)
-
+    
                 optimizer.step()
                 train_loss_list.append(loss.item())
 
@@ -225,7 +209,7 @@ class TRAINER(object):
 
             iteration += 1 
             if iteration % self.m_print_interval == 0:
-                print("%04d, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
+                logger_obj.f_add_output2IO("%04d, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
                     %(iteration, np.mean(self.m_train_loss_list), np.mean(self.m_train_rec_loss_list), np.mean(self.m_train_kl_loss_list), KL_weight_z))
 
                 self.m_train_loss_list = []

@@ -1,6 +1,6 @@
 import torch.optim as optim
 
-class Optimizer:
+class _OPTIM:
     def __init__(self, params, args):
         optimizer_type = args.optimizer_type
         lr = args.learning_rate
