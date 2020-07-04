@@ -93,7 +93,7 @@ class _INFER(object):
         # eval_item2iid = eval_data.m_item2iid
 
         bleu_score_list = []
-        output_file = "2.csv"
+        output_file = "yelp_aobo.csv"
         output_f = open(output_file, "w")
         print("output_file")
 
@@ -103,10 +103,10 @@ class _INFER(object):
         with torch.no_grad():
             for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
 
-                if batch_index > 0:
-                    break
+                # if batch_index > 0:
+                #     break
 
-                batch_index += 1
+                # batch_index += 1
 
                 input_batch_gpu = input_batch.to(self.m_device)
                 input_length_batch_gpu = input_length_batch.to(self.m_device)
@@ -228,10 +228,13 @@ class _INFER(object):
             ## print("input_embedding", input_embedding.size())
             output, hidden = self.m_network.m_generator.m_decoder_rnn(input_embedding, hidden)
 
+            output = output.view(-1, output.size(-1))
+            
             logits = self.m_network.m_generator.m_output2vocab(output)
 
-            input_seq = self._sample(logits)
-
+            # input_seq = self._sample(logits)
+            input_seq = self.f_topk_sampling(logits)
+            
             if len(input_seq.size()) < 1:
                 input_seq = input_seq.unsqueeze(0)
 
@@ -260,10 +263,10 @@ class _INFER(object):
                 m_z_s = torch.cat([m.unsqueeze(1), s.unsqueeze(1), (z+s).unsqueeze(1)], dim=1)
 
                 gate_flag_step_i = self.m_network.m_generator.m_de_gate(output)
-                print("--", gate_flag_step_i)
+                # print("--", gate_flag_step_i)
                 gate_flag_step_i = self.m_network.m_generator.f_gumbel_softmax(gate_flag_step_i)
 
-                print("gate_flag_step_i", gate_flag_step_i)
+                # print("gate_flag_step_i", gate_flag_step_i)
 
                 var_de = torch.sum(m_z_s*gate_flag_step_i.unsqueeze(-1), dim=1)
 
@@ -292,6 +295,22 @@ class _INFER(object):
             _, sample = torch.topk(dist, 1, dim=-1)
         # print("sample", sample)
         # print("dist", dist)
+        sample = sample.squeeze()
+
+        return sample
+
+    def f_topk_sampling(self, logits, top_k=5, filter_value=-float('Inf')):
+        # print("logits size", logits.size())
+        indices = torch.topk(logits, top_k, dim=-1)[0][:, -1]
+        # print("indices", indices)
+        
+        indices_to_remove = logits < indices.reshape(-1, 1)
+        # print("indices_to_remove", indices_to_remove.size())
+        logits[indices_to_remove] = filter_value
+        # exit()
+        probs = F.softmax(logits, dim=-1)
+
+        sample = torch.multinomial(probs, 1)
         sample = sample.squeeze()
 
         return sample

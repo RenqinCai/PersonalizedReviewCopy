@@ -233,7 +233,7 @@ class _EVAL(object):
 
         t = 0
 
-        var_de = self.m_network.m_generator.m_latent2output(m+z+s)
+        var_de = self.m_network.m_generator.m_latent2output(m_new+z+s)
         # var_de = self.m_network.m_generator.m_latent2output(z+s)
 
         # print("hidden size", hidden.size())
@@ -260,9 +260,12 @@ class _EVAL(object):
             ## print("input_embedding", input_embedding.size())
             output, hidden = self.m_network.m_generator.m_decoder_rnn(input_embedding, hidden)
 
+            output = output.view(-1, output.size(-1))
+
             logits = self.m_network.m_generator.m_output2vocab(output)
 
-            input_seq = self._sample(logits)
+            # input_seq = self._sample(logits)
+            input_seq = self.f_topk_sampling(logits)
 
             if len(input_seq.size()) < 1:
                 input_seq = input_seq.unsqueeze(0)
@@ -310,9 +313,25 @@ class _EVAL(object):
         # exit()
         return generations, z
 
-    def _sample(self, dist, mode="greedy"):
+    def _sample(self, logits, mode="greedy"):
         if mode == 'greedy':
-            _, sample = torch.topk(dist, 1, dim=-1)
+            _, sample = torch.topk(logits, 1, dim=-1)
+        sample = sample.squeeze()
+
+        return sample
+
+    def f_topk_sampling(self, logits, top_k=5, filter_value=-float('Inf')):
+        # print("logits size", logits.size())
+        indices = torch.topk(logits, top_k, dim=-1)[0][:, -1]
+        # print("indices", indices)
+        
+        indices_to_remove = logits < indices.reshape(-1, 1)
+        # print("indices_to_remove", indices_to_remove.size())
+        logits[indices_to_remove] = filter_value
+        # exit()
+        probs = F.softmax(logits, dim=-1)
+
+        sample = torch.multinomial(probs, 1)
         sample = sample.squeeze()
 
         return sample
