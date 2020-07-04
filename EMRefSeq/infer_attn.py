@@ -49,6 +49,10 @@ class _INFER(object):
 
         bleu_score_list = []
 
+        output_file = "yelp_edu_eval.txt"
+        output_f = open(output_file, "w")
+        print("output_file")
+
         with torch.no_grad():
             for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
                 if batch_index > 0:
@@ -72,16 +76,11 @@ class _INFER(object):
 
                 logits, z_prior, z_mean, z_logv, z, s_mean, s_logv, s_prior, s, l_mean, l_logv, l, variational_hidden = self.m_network(input_batch_gpu, input_length_batch_gpu, input_de_batch_gpu, input_de_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)       
 
-                print('random_flag', random_flag)
+                # print('random_flag', random_flag)
 
                 # print("*"*10, "encode -->  decode <--", "*"*10)
                 
-                print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
-
-                # mean = mean.unsqueeze(0)
-                # print("size", z_mean.size(), s_mean.size())
-                # mean = torch.cat([z_mean, s_mean], dim=1)
-                # mean = torch.cat([z_mean, s_mean], dim=1)
+                # print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
                 if random_flag == 0:
                     mean = z_mean+s_mean+l_mean
@@ -95,17 +94,34 @@ class _INFER(object):
                 max_seq_len = max(target_length_batch-1)
                 samples, z, attn_score = self.f_decode_text(z_mean, s_mean, l_mean, max_seq_len)
 
-                # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                target_str = *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx)
 
-                # bleu_score_list.append(bleu_score_batch)
-                print("<-"*10)
-                print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                pred_str = *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx)
 
-                print2flag(attn_score)
-                # print(*print2flag(user_item_flags), sep='\n')
+                for sample_i in range(batch_size):
+                    user_i = user_batch[sample_i].item()
+                    item_i = item_batch[sample_i].item()
 
-                print("<-"*10)
-                print("target", "<-"*10, *idx2word(target_batch[:, 1:,], i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                    target_i = target_str[i]
+                    pred_i = pred_str[i]      
+                    
+                    output_msg = str(user_i)+"\t"+str(item_i)+"\t"+target_i+"\t"+pred_i+"\n"
+
+                    output_f.write(output_msg)
+
+            output_f.close()
+
+            # print("->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+
+            # bleu_score_list.append(bleu_score_batch)
+            # print("<-"*10)
+            # print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+
+            # print2flag(attn_score)
+            # print(*print2flag(user_item_flags), sep='\n')
+
+            # print("<-"*10)
+            # print("target", "<-"*10, *idx2word(target_batch[:, 1:,], i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
         # mean_bleu_score = np.mean(bleu_score_list)
         # print("bleu score", mean_bleu_score)
@@ -256,7 +272,7 @@ def print2flag(idx):
 
 def idx2word(idx, i2w, pad_idx):
 
-    print_sent_num = 10
+    print_sent_num = len(idx)
     sent_str = [str()]*print_sent_num
     # sent_str = [str()]*len(idx)
     # print(i2w)

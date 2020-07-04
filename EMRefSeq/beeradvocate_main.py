@@ -8,7 +8,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from train import _TRAINER
-import torch.nn as nn
+
 from data import _DATA
 # from perturb_data_clothing import _Data
 # from movie import _MOVIE, _MOVIE_TEST
@@ -76,19 +76,6 @@ def main(args):
     if  args.train:
         logger_obj = _LOGGER()
         logger_obj.f_add_writer(args)
-
-        # if torch.cuda.device_count() > 1:
-        #     print("... let us use", torch.cuda.device_count(), "GPUs!")
-        #     network = nn.DataParallel(network)
-
-        # print("=="*20)
-        # print("device", network.cuda())
-
-            # en_parameters = list(network.module.m_embedding.parameters()) + list(network.module.m_user_item_encoder.parameters()) + list(network.module.m_output2vocab.parameters())
-            # en_optimizer = _OPTIM(en_parameters, args)
-
-            # de_parameters = network.module.m_generator.parameters()
-            # de_optimizer = _OPTIM(de_parameters, args)
 
         en_parameters = list(network.m_embedding.parameters()) + list(network.m_user_item_encoder.parameters()) + list(network.m_output2vocab.parameters())
         en_optimizer = _OPTIM(en_parameters, args)

@@ -144,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--eps', type=float, default=0.0001)
     parser.add_argument('--vocab_file', type=str, default="vocab.json")
     parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="iReview_attn")
+    parser.add_argument('--model_name', type=str, default="EMRefSeq")
     parser.add_argument('--hcdmg1', action="store_true", default=False)
 
     parser.add_argument('--de_strategy', type=str, default="attn")

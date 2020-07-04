@@ -126,6 +126,7 @@ class _EVAL(object):
                 bleu_score_list.append(bleu_score_batch)
 
                 total_target_word_num += sum(lens)
+                total_target_word_num -= batch_size
 
                 total_review_num += batch_size
 

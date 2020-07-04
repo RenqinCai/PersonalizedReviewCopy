@@ -28,20 +28,29 @@ class _NETWORK(nn.Module):
         self.m_embedding = nn.Embedding(self.m_vocab_size, self.m_embedding_size)
         self.m_embedding_dropout = nn.Dropout(p=self.m_dropout_rate)
 
+        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+
         self.m_user_embedding = nn.Embedding(self.m_user_size, self.m_latent_size)
         self.m_item_embedding = nn.Embedding(self.m_item_size, self.m_latent_size)
 
-        self.m_user_item_encoder = _ENC_NETWORK(self.m_embedding, vocab_obj, args, self.m_device)
+        self.m_user_item_encoder = _ENC_NETWORK(self.m_embedding, self.m_output2vocab, vocab_obj, args, self.m_device)
 
         print("self.m_device", self.m_device)
         self.m_user_num = torch.zeros((self.m_user_size, 1)).to(self.m_device)
         self.m_item_num = torch.zeros((self.m_item_size, 1)).to(self.m_device)
 
-        self.m_generator = _GEN_NETWORK(self.m_embedding, self.m_user_embedding, self.m_item_embedding, vocab_obj, args, self.m_device)
+        self.m_generator = _GEN_NETWORK(self.m_embedding, self.m_output2vocab, self.m_user_embedding, self.m_item_embedding, vocab_obj, args, self.m_device)
 
         self = self.to(self.m_device)
 
-    def forward(self):
+    def forward(self, reviews, review_lens, user_ids, item_ids, random_flag, forward_flag):
+
+        if forward_flag == "encode":
+            return self.encode(reviews, review_lens, user_ids, item_ids)
+
+        elif forward_flag == "decode":
+            return self.decode(reviews, user_ids, item_ids, random_flag)
+
         return None
         ### map user & item hidden to user embedding and item embedding 
         
@@ -79,7 +88,7 @@ class _NETWORK(nn.Module):
         return logits
     
 class _GEN_NETWORK(nn.Module):
-    def __init__(self, embedding, user_embedding, item_embedding, vocab_obj, args, device):
+    def __init__(self, embedding, output2vocab, user_embedding, item_embedding, vocab_obj, args, device):
         super().__init__()
 
         self.m_device = device
@@ -109,7 +118,8 @@ class _GEN_NETWORK(nn.Module):
 
         self.m_decoder_rnn = nn.GRU(self.m_embedding_size, self.m_hidden_size, num_layers=self.m_num_layers, bidirectional=False, batch_first=True)
         
-        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        # self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size)
+        self.m_output2vocab = output2vocab
 
         if self.m_de_strategy == "gate":
             self.m_decoder_gate = nn.Sequential(nn.Linear(self.m_hidden_size, 1), nn.Sigmoid())
@@ -120,6 +130,11 @@ class _GEN_NETWORK(nn.Module):
         # self = self.to(self.m_device)
 
     def forward(self, input_de_sequence, user_ids, item_ids, random_flag):
+        
+        # if not hasattr(self, '_flattened'):
+        #     self.m_decoder_rnn.flatten_parameters()
+        #     setattr(self, '_flattened', True)
+
         batch_size = input_de_sequence.size(0)
         de_batch_size = input_de_sequence.size(0)
         de_len = input_de_sequence.size(1)
@@ -202,7 +217,7 @@ class _GEN_NETWORK(nn.Module):
 
 ### obtain the representation of users and items. 
 class _ENC_NETWORK(nn.Module):
-    def __init__(self, embedding, vocab_obj, args, device):
+    def __init__(self, embedding, output2vocab, vocab_obj, args, device):
         super(_ENC_NETWORK, self).__init__()
 
         self.m_device = device
@@ -223,9 +238,11 @@ class _ENC_NETWORK(nn.Module):
         self.m_user_decoder = _DECODER(embedding, self.m_embedding_size, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
         self.m_item_decoder = _DECODER(embedding, self.m_embedding_size, self.m_latent_size, self.m_hidden_size, self.m_device, self.m_layers_num, self.m_dropout_rate)
 
-        self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size) 
+        self.m_output2vocab = output2vocab
+        # self.m_output2vocab = nn.Linear(self.m_hidden_size, self.m_vocab_size) 
 
     def forward(self, reviews, review_lens, user_ids, item_ids):
+
         ### obtain user representation
         user_hidden = self.m_user_encoder(reviews, review_lens)
 
@@ -262,7 +279,10 @@ class _ENCODER(nn.Module):
         self.m_hidden2latent = nn.Linear(self.m_hidden_size*2, self.m_latent_size)
         
     def forward(self, x, x_len, hidden=None):
-        
+        # if not hasattr(self, '_flattened'):
+        #     self.m_gru.flatten_parameters()
+        #     setattr(self, '_flattened', True)
+
         batch_size = x.size(0)
         input_embedding = self.m_embedding(x)
         input_embedding = self.m_embedding_dropout(input_embedding)
@@ -299,7 +319,10 @@ class _DECODER(nn.Module):
         self.m_gru = nn.GRU(self.m_hidden_size, self.m_hidden_size, self.m_layers_num, dropout=self.m_dropout_rate, bidirectional=False)
 
     def forward(self, x, en_latent, hidden=None):
-        
+        # if not hasattr(self, '_flattened'):
+        #     self.m_gru.flatten_parameters()
+        #     setattr(self, '_flattened', True)
+
         en_hidden = self.m_tanh(en_latent)
         de_hidden = self.m_latent2output(en_hidden)
 

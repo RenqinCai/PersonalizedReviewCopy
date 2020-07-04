@@ -6,6 +6,7 @@ import os
 from metric import get_bleu, get_recall
 import torch.nn.functional as F
 import datetime
+import csv
 
 class _INFER(object):
     def __init__(self, vocab_obj, args, device):
@@ -150,12 +151,18 @@ class _INFER(object):
         # eval_item2iid = eval_data.m_item2iid
 
         bleu_score_list = []
+        output_file = "yelp_edu_eval.csv"
+        output_f = open(output_file, "w")
+        print("output_file")
+
+        writer = csv.writer(output_f)
+
         self.m_network.eval()
         with torch.no_grad():
             for input_batch, input_length_batch, user_batch, item_batch, target_batch, target_length_batch, random_flag in eval_data:
 
-                if batch_index > 0:
-                    break
+                # if batch_index > 0:
+                #     break
 
                 batch_index += 1
 
@@ -171,7 +178,7 @@ class _INFER(object):
                 input_de_batch_gpu = target_batch
                 input_de_length_batch_gpu = target_length_batch
 
-                print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                # print("encoding", "->"*10, *idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
 
                 # print("user_batch", user_batch)
                 # print("item_batch", item_batch)
@@ -188,9 +195,29 @@ class _INFER(object):
                 max_seq_len = max(target_length_batch-1)
                 samples, attn_score = self.f_decode_text(user_hidden_gpu, item_hidden_gpu, max_seq_len)
 
-                print2flag(attn_score)
+                # print2flag(attn_score)
             
-                print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+                # print("decoding", "<-"*10, *idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx), sep='\n')
+
+                target_str = idx2word(input_batch, i2w=self.m_i2w, pad_idx=self.m_pad_idx)
+                print(len(target_str))
+
+                pred_str = idx2word(samples, i2w=self.m_i2w, pad_idx=self.m_pad_idx)
+
+                batch_size = user_batch.size(0)
+                for sample_i in range(batch_size):
+                    user_i = user_batch[sample_i].item()
+                    item_i = item_batch[sample_i].item()
+
+                    target_i = target_str[sample_i]
+                    pred_i = pred_str[sample_i]      
+                    
+                    # output_msg = str(user_i)+"\t"+str(item_i)+"\t"+target_i+" xxxxx "+pred_i+"\n"
+                    writer.writerow([str(user_i), str(item_i), target_i, pred_i])
+
+                    # output_f.write(output_msg)
+
+            output_f.close()
 
     def print2flag(idx):
         print_sent_num = 10
@@ -210,7 +237,7 @@ class _INFER(object):
         if z is None:
             assert "z is none"
 
-        batch_size = self.m_batch_size
+        batch_size = z.size(0)
         
         seq_idx = torch.arange(0, batch_size).long().to(self.m_device)
 
@@ -335,7 +362,7 @@ class _INFER(object):
 def idx2word(idx, i2w, pad_idx):
 
     # print_sent_num = len(idx)
-    print_sent_num = 20
+    print_sent_num = len(idx)
     sent_str = [str()]*print_sent_num
     # sent_str = [str()]*len(idx)
     # print(i2w)

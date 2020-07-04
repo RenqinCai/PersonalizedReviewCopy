@@ -10,7 +10,7 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from metric import _REC_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS
 from model import _NETWORK
-from inference import _INFER
+from infer_new import _INFER
 import random
 
 class _TRAINER(object):
@@ -182,8 +182,9 @@ class _TRAINER(object):
             input_de_length_batch = target_length_batch-1
 
             batch_size = input_batch.size(0)
-
-            user_logits, item_logits = network.m_user_item_encoder(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+            # print("+++"*20)
+            user_logits, item_logits = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag, "encode")
+            # user_logits, item_logits = network.module.m_user_item_encoder(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
             user_en_NLL_loss = self.m_rec_loss(user_logits, target_batch_gpu[:, 1:], target_length_batch-1)
             en_NLL_loss = user_en_NLL_loss/batch_size
 
@@ -316,7 +317,8 @@ class _TRAINER(object):
 
             batch_size = input_batch.size(0)
 
-            logits = network.decode(input_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)
+            # logits = network.module.decode(input_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag)
+            logits = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu, random_flag, "decode")
 
             gen_NLL_loss = self.m_rec_loss(logits, target_batch_gpu[:, 1:], target_length_batch-1)
 
