@@ -24,13 +24,19 @@ class _REC_BOW_LOSS(nn.Module):
     def __init__(self, device):
         super(_REC_BOW_LOSS, self).__init__()
         self.m_device = device
+        self.m_bce_loss = nn.BCEWithLogitsLoss(reduction="none")
 
     def forward(self, preds, targets, mask):
-        preds = F.log_softmax(preds.view(-1, preds.size(1)), dim=1)
+        ## preds: batch_size*seq_len
+        preds = preds.view(-1, preds.size(1))
+        targets = targets.float()
+        # preds = F.log_softmax(preds.view(-1, preds.size(1)), dim=1)
         mask = ~mask
-        rec_loss = torch.sum(preds*targets*mask, dim=-1)
+        rec_loss = self.m_bce_loss(preds, targets)
+        rec_loss = torch.sum(rec_loss*mask, dim=-1)
+        # rec_loss = torch.sum(preds*targets*mask, dim=-1)
 
-        rec_loss = -torch.mean(rec_loss)
+        rec_loss = torch.mean(rec_loss)
 
         return rec_loss
 

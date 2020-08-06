@@ -86,6 +86,9 @@ class _EVAL(object):
             for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
                 # print("batch_index", batch_index)
                 # print("=="*10)
+                if batch_index > 0:
+                    break
+
                 batch_size = input_batch.size(0)
 
                 input_batch_gpu = input_batch.to(self.m_device)
@@ -95,13 +98,11 @@ class _EVAL(object):
                 item_batch_gpu = item_batch.to(self.m_device)
 
                 target_batch_gpu = target_batch.to(self.m_device)
-                # print("target batch gpu", target_batch_gpu)
-                # target_batch_gpu = torch.gather(target_batch_gpu, 1, input_batch_gpu)
-
+                
                 user_hidden_gpu = self.m_user_embedding(user_batch_gpu)
                 item_hidden_gpu = self.m_item_embedding(item_batch_gpu)
                 
-                user_item_attr_logits_gpu = self.m_network(input_batch_gpu, user_batch_gpu, item_batch_gpu) 
+                user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
                 user_item_attr_logits = user_item_attr_logits_gpu.cpu()
 
                 target_logits = target_batch_gpu.cpu()
@@ -129,6 +130,15 @@ class _EVAL(object):
     def f_debug_bow(self, inputs, preds, targets, k=10):
         preds = preds.view(-1, preds.size(1))
         _, indices = torch.topk(preds, k, -1)
+
+        print("--"*10, "inputs", "--"*10)
+        for i, i_i in enumerate(inputs):
+            for j, i_i_j in enumerate(i_i):
+                i_i_j_val = i_i_j.item()
+                i_i_j_str = self.m_i2w[str(i_i_j_val)]
+                print(i_i_j_str, end=" ")
+            print()
+            print("--"*10)
 
         print("--"*10, "targets", "--"*10)
         # a = torch.gather(inputs, 1, indices)

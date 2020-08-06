@@ -65,30 +65,12 @@ class _YELP_RESTAURANT(Dataset):
         # review_list = df.review.tolist()
         # tokens_list = df.token_idxs.tolist()
         boa_list = df.boa.tolist()
-        # for sample_index in range(self.m_sample_num):
-        #     user_id = userid_list[sample_index]
-        #     item_id = itemid_list[sample_index]
-        #     boa = boa_list[sample_index]
-
-        #     item_boa = item_boa_dict[str(item_id)]
-
-        #     if user_id not in self.m_user2uid:
-        #         self.m_user2uid[user_id] = len(self.m_user2uid)
-            
-        #     if item_id not in self.m_item2iid:
-        #         self.m_item2iid[item_id] = len(self.m_item2iid)
-
-        #     input_len = len(item_boa)
-        #     target_len = len(boa)
-
-        #     self.m_input_length_batch_list.append(input_len)
-        #     self.m_target_length_batch_list.append(target_len)
 
         for sample_index in range(self.m_sample_num):
             
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
-            boa = boa_list[sample_index]
+            boa = boa_list[sample_index]            
             item_boa = item_boa_dict[str(item_id)]
 
             input_boa = item_boa
@@ -251,15 +233,18 @@ def f_merge_attr(args):
         if len(attr_i) > 2:
             continue
         attr_name_i = attr_i[0]
-        attr_cnt_i = int(attr_i[1])
+        if len(attr_i) > 1:
+            attr_cnt_i = int(attr_i[1])
 
-        if df_min_threshold > attr_cnt_i:
-            continue
-            
-        if df_max_threshold < attr_cnt_i:
-            continue
+            if df_min_threshold > attr_cnt_i:
+                continue
+                
+            if df_max_threshold < attr_cnt_i:
+                continue
             # continue
-        attr_list.append(attr_name_i)
+            attr_list.append(attr_name_i)
+        else:
+            attr_list.append(attr_name_i)
     f.close()
     
     extra_words=['<pad>','<unk>','<sos>','<eos>']
@@ -338,8 +323,8 @@ def f_get_bow_item(args):
         a = dict(a)
         a = [k for k, v in sorted(a.items(), key=lambda item: item[1], reverse=True)]
         
-        if len(a) == 0:
-            print("error")
+        # if len(a) == 0:
+        #     print("error")
 
         top_k = 100
         top_a = a[:top_k]
@@ -359,7 +344,6 @@ def f_get_bow_item(args):
     with open(item_boa_abs_file_name, 'w') as f:
         f.write(json.dumps(item_boa_dict))
 
-
     # item_review_list = train_df.groupby('itemid')['review'].apply(list)
     # item_review_list_dict = dict(item_review_list)
     # for item_id, item_review_list in item_review_list_dict.items():
@@ -369,7 +353,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default="../data/yelp_restaurant")
     parser.add_argument('--vocab_file', type=str, default="vocab.json")
-    parser.add_argument('--attr_file', type=str, default="attribute.txt")
+    parser.add_argument('--attr_file', type=str, default="attr.csv")
 
     args = parser.parse_args()
 

@@ -128,7 +128,6 @@ if __name__ == "__main__":
     parser.add_argument('--epoch_num', type=int, default=10)
     parser.add_argument('--print_interval', type=int, default=200)
     parser.add_argument('--hcdmg1', action="store_true", default=False)
-
     
     ### hyper-param
     # parser.add_argument('--init_mult', type=float, default=1.0)

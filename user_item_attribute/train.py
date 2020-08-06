@@ -192,11 +192,11 @@ class _TRAINER(object):
 
 				batch_size = input_batch.size(0)
 
-				user_item_attr_logits = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+				user_item_attr_logits, mask = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
 
 				# target_batch_gpu = torch.gather(target_batch_gpu, 1, input_batch_gpu)
 
-				NLL_loss = self.m_rec_loss(user_item_attr_logits, target_batch_gpu)
+				NLL_loss = self.m_rec_loss(user_item_attr_logits, target_batch_gpu, mask)
 				
 				# NLL_loss = NLL_loss/batch_size
 
