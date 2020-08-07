@@ -19,7 +19,26 @@ class _REC_LOSS(nn.Module):
 
         NLL_loss = self.m_NLL(pred_probs, targets)
         return NLL_loss
-    
+
+class _REC_SOFTMAX_BOW_LOSS(nn.Module):
+    def __init__(self, device):
+        super(_REC_SOFTMAX_BOW_LOSS, self).__init__()
+        self.m_device = device
+        
+    def forward(self, preds, targets, mask):
+        mask = ~mask
+        preds = preds.view(-1, preds.size(1))
+        preds[~mask] = float('-inf')
+        preds = F.softmax(preds, dim=1)
+
+        preds = preds+1e-20
+        log_preds = torch.log(preds)
+
+        rec_loss = torch.sum(log_preds*targets*mask, dim=-1)
+        rec_loss = -torch.mean(rec_loss)
+
+        return rec_loss
+
 class _REC_BOW_LOSS(nn.Module):
     def __init__(self, device):
         super(_REC_BOW_LOSS, self).__init__()
@@ -150,3 +169,46 @@ def get_recall(preds, targets, k=10):
     recall = hit/recall
 
     return recall
+
+def get_precision_recall(preds, targets, k=1):
+    preds = preds.view(-1, preds.size(1))
+    _, indices = torch.topk(preds, k, -1)
+
+    pos = torch.sum(targets, dim=1)
+
+    if pos.nonzero().size(0) != len(pos):
+        # print("error")
+        # print(pos)
+        return 0, 0
+    # recall_list = []
+    # precision_list = []
+
+    # for i, pos_i in enumerate(pos):
+    #     nonzero_num_i = pos[i]
+    #     indicies_i = indices[i][:nonzero_num_i]
+    #     targets_i = targets[i]
+
+    #     true_pos_i = targets_i[indicies_i]
+    #     true_pos_i = torch.sum(true_pos_i)
+    #     true_pos_i = true_pos_i.float()
+
+    #     recall_i = true_pos_i/pos_i
+    #     recall_list.append(recall_i)
+
+    #     precision_i = true_pos_i/nonzero_num_i
+    #     precision_list.append(precision_i)
+
+    # recall = np.mean(recall_list)
+    # precision = np.mean(precision_list)
+
+    true_pos = torch.gather(targets, 1, indices)
+    true_pos = torch.sum(true_pos, dim=1)
+    true_pos = true_pos.float()
+
+    recall = true_pos/pos
+    precision = true_pos/k
+
+    recall = torch.mean(recall)
+    precision = torch.mean(precision)
+
+    return precision, recall

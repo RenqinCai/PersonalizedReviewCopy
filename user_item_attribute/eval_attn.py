@@ -7,6 +7,7 @@ from metric import get_bleu
 import torch.nn.functional as F
 import torch.nn as nn
 import datetime
+import statistics
 
 class _EVAL(object):
     def __init__(self, vocab_obj, args, device):
@@ -70,8 +71,32 @@ class _EVAL(object):
         e_time = datetime.datetime.now()
         print("load user item duration", e_time-s_time)
 
+    def f_data_analysis(self, train_data, eval_data):
+        target_attr_num_list = []
+        input_attr_num_list = []
+
+        self.m_network.eval()
+        with torch.no_grad():
+            for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+
+                # input_attr_num = torch.sum(input_length_batch, dim=1)
+                input_attr_num_list.extend(input_length_batch)
+
+                target_attr_num = torch.sum(target_batch, dim=1)
+                target_attr_num_list.extend(target_attr_num)
+        
+        input_attr_num = np.mean(input_attr_num_list)
+
+        target_attr_num = np.mean(target_attr_num_list)
+
+        print("input_attr_num", input_attr_num, np.var(input_attr_num_list))
+        print("target_attr_num", target_attr_num, np.var(target_attr_num_list))
+
     def f_eval_new(self, train_data, eval_data):
         # self.f_init_user_item(eval_data)
+
+        self.f_data_analysis(train_data, eval_data)
+        # exit()
 
         self.f_get_user_item(train_data, eval_data)
 
@@ -84,11 +109,7 @@ class _EVAL(object):
         self.m_network.eval()
         with torch.no_grad():
             for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
-                # print("batch_index", batch_index)
-                # print("=="*10)
-                if batch_index > 0:
-                    break
-
+                
                 batch_size = input_batch.size(0)
 
                 input_batch_gpu = input_batch.to(self.m_device)
@@ -105,8 +126,17 @@ class _EVAL(object):
                 user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
                 user_item_attr_logits = user_item_attr_logits_gpu.cpu()
 
-                target_logits = target_batch_gpu.cpu()
-                precision_batch, recall_batch = self.f_debug_bow(input_batch, user_item_attr_logits, target_logits)
+                # target_logits = target_batch_gpu.cpu()
+                # precision_batch, recall_batch = self.f_debug_bow(input_batch, user_item_attr_logits, target_batch)
+                # print("=="*10, batch_index, "=="*10)
+                # # print("batch_index", batch_index)
+
+                # if batch_index > 0:
+                #     break
+
+                precision_batch, recall_batch = self.f_eval_bow( user_item_attr_logits, target_batch, k=3)
+
+                
                 # precision_batch, recall_batch = self.f_eval_bow(user_item_attr_logits, target_logits)
 
                 if precision_batch == 0 and recall_batch == 0:
@@ -166,6 +196,8 @@ class _EVAL(object):
         return 1, 1
 
     def f_eval_bow(self, preds, targets, k=10):
+        # indices = torch.randint(0, preds.size(1), (preds.size(0), k))
+        # print("indices", indices.size())
         preds = preds.view(-1, preds.size(1))
         _, indices = torch.topk(preds, k, -1)
 

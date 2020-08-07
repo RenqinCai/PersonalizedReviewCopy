@@ -35,8 +35,8 @@ class _ATTR_NETWORK(nn.Module):
         self.m_item_linear = nn.Linear(self.m_item_embed_size, self.m_output_hidden_size)
         self.m_attr_linear = nn.Linear(self.m_attr_embed_size, self.m_output_hidden_size)
 
-        self.m_mix_tanh = nn.Tanh()
-
+        # self.m_mix_tanh = nn.Tanh()
+        self.m_mix_af = nn.ReLU()
         # self.m_output = nn.Linear(self.m_output_hidden_size, 1)
         self.m_output = nn.Linear(1, 1)
     
@@ -55,54 +55,52 @@ class _ATTR_NETWORK(nn.Module):
 
         return mask
 
+    # def forward(self, attr_input, lens, user_ids, item_ids):
+    #     attr_x = self.m_attr_embedding(attr_input)
+        
+    #     mask = self.f_generate_mask(lens)
+
+    #     # attr_x = attr_x.transpose(0, 1)
+    #     # attr_attn_x = self.m_attn(attr_x, src_key_padding_mask = mask)
+    #     # attr_attn_x = attr_attn_x.transpose(0, 1)
+
+    #     attr_x = self.m_attr_linear(attr_x)
+
+    #     user_x = self.m_user_embedding(user_ids)
+    #     user_x = self.m_user_linear(user_x)
+
+    #     ### user_x: batch_size*1*hidden_size
+    #     user_x = user_x.unsqueeze(2)
+        
+    #     user_attr_weight = torch.matmul(attr_x, user_x)
+    #     user_attr_logits = self.m_output(user_attr_weight)
+
+    #     ### user_item_attr_logits: batch_size*seq_len*1
+    #     user_item_attr_logits = user_attr_logits
+
+    #     return user_item_attr_logits, mask
+
     def forward(self, attr_input, lens, user_ids, item_ids):
         attr_x = self.m_attr_embedding(attr_input)
-
-        # attr_x = attr_x.transpose(0, 1)
-        user_x = self.m_user_embedding(user_ids)
-        # item_x = self.m_item_embedding(item_ids)
-
+        attr_x = attr_x.transpose(0, 1)
+        
         mask = self.f_generate_mask(lens)
-        # print("mask size", mask.size())
-        # print("attr x", attr_x.size())
-        # print("mask", mask)
 
-        # attr_attn_x = self.m_attn(attr_x, src_key_padding_mask = mask)
-        # attr_attn_x = attr_attn_x.transpose(0, 1)
+        attr_attn_x = self.m_attn(attr_x, src_key_padding_mask = mask)
+        attr_attn_x = attr_attn_x.transpose(0, 1)
 
-        # attr_x = self.m_attr_linear(attr_attn_x)
-        attr_x = self.m_attr_linear(attr_x)
+        attr_x = self.m_attr_linear(attr_attn_x)
 
+        user_x = self.m_user_embedding(user_ids)
         user_x = self.m_user_linear(user_x)
-        # item_x = self.m_item_linear(item_x)
 
         ### user_x: batch_size*1*hidden_size
         user_x = user_x.unsqueeze(2)
         
         user_attr_weight = torch.matmul(attr_x, user_x)
-        # user_attr_weight = user_attr_weight.squeeze(-1)
-
-        ### user_attr_weight: batch_size*seq_len*1
-        user_attr_weight = F.softmax(user_attr_weight)
-
         user_attr_logits = self.m_output(user_attr_weight)
 
         ### user_item_attr_logits: batch_size*seq_len*1
         user_item_attr_logits = user_attr_logits
-        # item_x = item_x.unsqueeze(1)
-
-        # print("attr x", attr_x.size())
-        # print("user x", user_x.size())
-        # print("item x", item_x.size())
-
-        # user_item_attr_x = self.m_mix_tanh(attr_x+user_x+item_x)
-        # user_item_attr_x = self.m_mix_tanh(attr_x+user_x)
-
-        # user_item_attr_x = self.m_mix_tanh(attr_x)
-
-        # ### user_item_attr_logits size: batch_size*seq_len*1
-        # user_item_attr_logits = self.m_output(user_item_attr_x)
-
-        # print("user_item_attr_logits", user_item_attr_logits.size())
 
         return user_item_attr_logits, mask

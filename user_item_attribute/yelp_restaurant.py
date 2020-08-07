@@ -67,7 +67,7 @@ class _YELP_RESTAURANT(Dataset):
         boa_list = df.boa.tolist()
 
         for sample_index in range(self.m_sample_num):
-            
+        # for sample_index in range(1000):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
             boa = boa_list[sample_index]            
@@ -285,10 +285,17 @@ def f_get_bow_item(args):
 
     train_data_file = data_dir+'/train.pickle'
     valid_data_file = data_dir+'/valid.pickle'
+    test_data_file = data_dir+'/test.pickle'
 
     train_df = pd.read_pickle(train_data_file)
     valid_df = pd.read_pickle(valid_data_file)
+    test_df = pd.read_pickle(test_data_file)
 
+    print('train num', len(train_df))
+    print('valid num', len(valid_df))
+    print('test num', len(test_df))
+
+    # exit()
     vocab_abs_file = os.path.join(args.data_dir, vocab_file)
     with open(vocab_abs_file, 'r', encoding='utf8') as f:
         vocab = json.loads(f.read())
@@ -310,6 +317,10 @@ def f_get_bow_item(args):
     valid_df['boa'] = valid_df.apply(lambda row: get_review_boa(row['token_idxs']), axis=1)
     # del valid_df['review']
     valid_df.to_pickle(valid_data_file)
+
+    test_df['boa'] = test_df.apply(lambda row: get_review_boa(row['token_idxs']), axis=1)
+    # del valid_df['review']
+    test_df.to_pickle(test_data_file)
 
     # print(train_df.iloc[0])
     # exit()
@@ -357,6 +368,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # f_merge_attr(args)
+    f_merge_attr(args)
     f_get_bow_item(args)
 

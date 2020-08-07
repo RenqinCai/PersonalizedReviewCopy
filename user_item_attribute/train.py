@@ -8,7 +8,7 @@ import datetime
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-from metric import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS
+from metric import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, get_precision_recall
 from model import _ATTR_NETWORK
 from infer_new import _INFER
 import random
@@ -33,7 +33,8 @@ class _TRAINER(object):
 		# self.m_x0 = args.x0
 		# self.m_k = args.k
 		
-		self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
+		# self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
+		self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
 
 		self.m_train_step = 0
 		self.m_valid_step = 0
@@ -74,7 +75,7 @@ class _TRAINER(object):
 
 			elif last_train_loss < self.m_mean_train_loss:
 				print("!"*10, "error training loss increase", "!"*10, "last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
-				break
+				# break
 			else:
 				print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
 				last_train_loss = self.m_mean_train_loss
@@ -95,8 +96,8 @@ class _TRAINER(object):
 				
 				overfit_indicator += 1
 
-				if overfit_indicator > self.m_overfit_epoch_threshold:
-					break
+				# if overfit_indicator > self.m_overfit_epoch_threshold:
+				# 	break
 			else:
 				print("last val loss %.4f"%last_val_loss, "cur val loss %.4f"%self.m_mean_val_loss)
 				last_val_loss = self.m_mean_val_loss
@@ -114,7 +115,12 @@ class _TRAINER(object):
 
 	def f_train_epoch(self, train_data, network, optimizer, logger_obj):
 		loss_list = []
+		precision_list = []
+		recall_list = []
+
 		train_loss_list = []
+		train_precision_list = []
+		train_recall_list = []
 		iteration = 0
 
 		# logger_obj.f_add_output2IO("--"*20)
@@ -140,6 +146,14 @@ class _TRAINER(object):
 			NLL_loss = self.m_rec_loss(user_item_attr_logits, target_batch_gpu, mask)
 			# NLL_loss = NLL_loss
 
+			precision, recall = get_precision_recall(user_item_attr_logits.cpu(), target_batch, k=10)
+			if precision != 0 and recall != 0:  
+				precision_list.append(precision)
+				recall_list.append(recall)
+
+				train_precision_list.append(precision)
+				train_recall_list.append(recall)
+
 			# loss = NLL_loss+beta*KL_loss
 			loss = NLL_loss
 			# print("loss", loss)
@@ -154,12 +168,16 @@ class _TRAINER(object):
 			iteration += 1
 			if iteration % self.m_print_interval == 0:
 				
-				logger_obj.f_add_output2IO("%d, NLL_loss:%.4f"%(iteration, np.mean(loss_list)))
+				logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(iteration, np.mean(loss_list), np.mean(precision_list), np.mean(recall_list)))
 				
 				loss_list = []
+				precision_list = []
+				recall_list = []
 
 			self.m_train_iteration += 1
 			logger_obj.f_add_scalar2tensorboard("train/loss", np.mean(train_loss_list), self.m_train_iteration)
+			logger_obj.f_add_scalar2tensorboard("train/precision", np.mean(train_precision_list), self.m_train_iteration)
+			logger_obj.f_add_scalar2tensorboard("train/recall", np.mean(train_recall_list), self.m_train_iteration)
 
 		self.m_mean_train_loss = np.mean(train_loss_list)
 
