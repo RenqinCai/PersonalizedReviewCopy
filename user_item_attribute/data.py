@@ -19,7 +19,6 @@ import pickle
 import string
 import datetime
 from collections import Counter 
-from scipy import sparse
 from cloth import _CLOTH, _CLOTH_TEST
 # from clothing import _CLOTHING, _CLOTHING_TEST
 from movie import _MOVIE, _MOVIE_TEST
@@ -38,10 +37,15 @@ class _DATA():
         # self.m_vocab_file = self.m_data_name+".vocab.json"
         self.m_vocab_file = args.vocab_file
         self.m_item_boa_file = args.item_boa_file
+        self.m_user_boa_file = args.user_boa_file
 
-        train_data_file = args.data_dir+"/train.pickle"
-        valid_data_file = args.data_dir+"/valid.pickle"
-        test_data_file = args.data_dir+"/test.pickle"
+        train_data_file = args.data_dir+"/new_train.pickle"
+        valid_data_file = args.data_dir+"/new_valid.pickle"
+        test_data_file = args.data_dir+"/new_test.pickle"
+
+        # train_data_file = args.data_dir+"/train.pickle"
+        # valid_data_file = args.data_dir+"/valid.pickle"
+        # test_data_file = args.data_dir+"/test.pickle"
         
         train_df = pd.read_pickle(train_data_file)
         valid_df = pd.read_pickle(valid_data_file)
@@ -56,6 +60,11 @@ class _DATA():
         with open(os.path.join(args.data_dir, self.m_item_boa_file), 'r',encoding='utf8') as f:
             item_boa_dict = json.loads(f.read())
 
+        # with open(os.path.join(args.data_dir, self.m_user_boa_file), 'r', encoding='utf8') as f:
+        #     user_boa_dict = json.loads(f.read())
+
+        user_boa_dict = {}
+
         vocab_obj = _Vocab()
         vocab_obj.f_set_vocab(vocab['a2i'], vocab['i2a'])
         vocab_obj.f_set_user_num(user_num)
@@ -68,8 +77,8 @@ class _DATA():
         
         print("vocab size", vocab_obj.m_vocab_size)
 
-        train_data = _YELP_RESTAURANT(args, vocab_obj, train_df, item_boa_dict)
-        valid_data = _YELP_RESTAURANT(args, vocab_obj, valid_df, item_boa_dict)
+        train_data = _YELP_RESTAURANT(args, vocab_obj, train_df, item_boa_dict, user_boa_dict)
+        valid_data = _YELP_RESTAURANT(args, vocab_obj, valid_df, item_boa_dict, user_boa_dict)
 
         batch_size = args.batch_size
 

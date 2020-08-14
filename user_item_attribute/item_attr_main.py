@@ -5,20 +5,21 @@ import random
 import torch.nn as nn
 import torch.cuda
 
-from pprint import pprint, pformat
 import pickle
 import argparse
 from data import _DATA
-
+import json
 import os
-import math
 from optimizer import _OPTIM
 from logger import _LOGGER
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import time
 from train import _TRAINER
 from model import _ATTR_NETWORK
-from eval_attn import _EVAL
+# from eval_attn import _EVAL
+from infer_attn import _INFER
+from eval_pop import _EVAL
+# from eval_user_item_pop import _EVAL
 
 # from pytorch_visualize import *         
 
@@ -28,6 +29,28 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+def load_pretrain_word2vec(vocab_obj, args):
+    voc_size = vocab_obj.vocab_size
+    embed_size = args.attr_emb_size
+    word_embed = np.zeros((voc_size, embed_size))
+
+    w2i = vocab_obj.m_w2i
+
+    pretrain_file = "../data/yelp_restaurant_new/attr_word2vec.pickle"
+    f = open(pretrain_file, "rb")
+    pretrain_word2vec_dict = pickle.load(f)
+    f.close()
+
+    for word in pretrain_word2vec_dict:
+        if word not in w2i:
+            continue
+        wordvec = pretrain_word2vec_dict[word]
+        word_id = w2i[word]
+        word_embed[word_id] = wordvec
+    
+    word_embed = torch.from_numpy(word_embed)
+    return word_embed
 
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
@@ -55,6 +78,9 @@ def main(args):
     print("vocab_size", vocab_obj.vocab_size)
     print("user num", vocab_obj.user_num)
     print("item num", vocab_obj.item_num)
+    
+    pretrain_word_embed = load_pretrain_word2vec(vocab_obj, args)
+    pretrain_word_embed = pretrain_word_embed.to(device)
 
     network = _ATTR_NETWORK(vocab_obj, args, device)
 
@@ -73,7 +99,7 @@ def main(args):
 
         optimizer = _OPTIM(network.parameters(), args)
         trainer = _TRAINER(vocab_obj, args, device)
-        trainer.f_train(train_data, valid_data, network, optimizer, logger_obj)
+        trainer.f_train(pretrain_word_embed, train_data, valid_data, network, optimizer, logger_obj)
 
         logger_obj.f_close_writer()
 
@@ -86,7 +112,19 @@ def main(args):
 
         eval_obj.f_init_eval(network, args.model_file, reload_model=True)
 
+        # eval_obj.f_eval_new_user(train_data, valid_data)
         eval_obj.f_eval(train_data, valid_data)
+
+    if args.test:
+        print("="*10, "eval", "="*10)
+        
+        infer_obj = _INFER(vocab_obj, args, device)
+
+        network = network.to(device)
+
+        infer_obj.f_init_infer(network, args.model_file, reload_model=True)
+
+        infer_obj.f_infer(train_data, valid_data)
 
     # emb = network.m_decoder.weight.data
     # # print("emb size 0", emb.shape)
@@ -107,6 +145,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--vocab_file', type=str, default='vocab.json')
     parser.add_argument('--item_boa_file', type=str, default='item_boa.json')
+    parser.add_argument('--user_boa_file', type=str, default='user_boa.json')
     parser.add_argument('--model_file', type=str, default="model_best.pt")
     parser.add_argument('--model_name', type=str, default="item_attr_main")
     parser.add_argument('--model_path', type=str, default="../checkpoint/")

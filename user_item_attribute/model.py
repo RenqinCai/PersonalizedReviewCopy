@@ -36,7 +36,7 @@ class _ATTR_NETWORK(nn.Module):
         self.m_attr_linear = nn.Linear(self.m_attr_embed_size, self.m_output_hidden_size)
 
         # self.m_mix_tanh = nn.Tanh()
-        self.m_mix_af = nn.ReLU()
+        # self.m_mix_af = nn.ReLU()
         # self.m_output = nn.Linear(self.m_output_hidden_size, 1)
         self.m_output = nn.Linear(1, 1)
     
@@ -95,12 +95,17 @@ class _ATTR_NETWORK(nn.Module):
         user_x = self.m_user_linear(user_x)
 
         ### user_x: batch_size*1*hidden_size
-        user_x = user_x.unsqueeze(2)
         
+        # user_x = user_x.unsqueeze(1)
+        # attr_x = self.m_mix_af(attr_x + user_x)
+        # user_attr_logits = self.m_output(attr_x)
+
+        user_x = user_x.unsqueeze(2)
         user_attr_weight = torch.matmul(attr_x, user_x)
         user_attr_logits = self.m_output(user_attr_weight)
 
         ### user_item_attr_logits: batch_size*seq_len*1
+
         user_item_attr_logits = user_attr_logits
 
         return user_item_attr_logits, mask

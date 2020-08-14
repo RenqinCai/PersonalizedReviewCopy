@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from yelp_restaurant import pretrain_word2vec
 import torch
 import argparse
 import numpy as np
@@ -54,11 +55,17 @@ class _TRAINER(object):
 		# }
 		torch.save(checkpoint, self.m_model_file)
 
-	def f_train(self, train_data, eval_data, network, optimizer, logger_obj):
+	def f_init_word_embed(self, pretrain_word_embed, network):
+		network.m_attr_embedding.weight.data.copy_(pretrain_word_embed)
+		# network.m_attr_embedding.weight.requires_grad = False
+
+	def f_train(self, pretrain_word_embed, train_data, eval_data, network, optimizer, logger_obj):
 		last_train_loss = 0
 		last_val_loss = 0
 
 		overfit_indicator = 0
+
+		self.f_init_word_embed(pretrain_word_embed, network)
 
 		for epoch in range(self.m_epochs):
 			print("++"*20, epoch, "++"*20)
@@ -109,9 +116,10 @@ class _TRAINER(object):
 			# 	'epoch': epoch,
 			# 	'optimizer': optimizer
 			# }
-		checkpoint = {'model':network.state_dict()}
-		
-		self.f_save_model(checkpoint)
+			if epoch %50 == 0:
+				checkpoint = {'model':network.state_dict()}
+				
+				self.f_save_model(checkpoint)
 
 	def f_train_epoch(self, train_data, network, optimizer, logger_obj):
 		loss_list = []
