@@ -39,6 +39,7 @@ class _YELP_RESTAURANT(Dataset):
         ###get length
         
         self.m_input_batch_list = []
+        self.m_input_freq_batch_list = []
         self.m_input_length_batch_list = []
         self.m_user_batch_list = []
         self.m_item_batch_list = []
@@ -59,33 +60,25 @@ class _YELP_RESTAURANT(Dataset):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
             boa = boa_list[sample_index]    
-            # item_boa = item_boa_dict[str(item_id)]        
-            item_boa = item_boa_dict[str(item_id)][0]
-            # user_boa = user_boa_dict[str(user_id)][0]
+            
+            # item_boa = item_boa_dict[str(item_id)]
+            # input_boa = item_boa
+            # input_boa_freq = [0 for i in range(len(item_boa))]
+
+            item_boa_boafreq = item_boa_dict[str(item_id)]  
+            item_boa = item_boa_boafreq[0]
+            item_freq = item_boa_boafreq[1]
 
             input_boa = item_boa
+            input_boa_freq = item_freq
+
             target_boa = boa
 
             input_len = len(item_boa)
             target_len = len(boa)
 
-            # if not target_boa:
-            #     # print("error", target_boa)
-            #     continue
-            
-            # if not input_boa:
-            #     # print("error input boa")
-            #     continue
-
-            if len(input_boa) == 0:
-                print("empty input data", input_boa)
-                continue
-
-            if len(target_boa) == 0:
-                print("empty target boa", target_boa)
-                continue
-
             self.m_input_batch_list.append(input_boa)
+            self.m_input_freq_batch_list.append(input_boa_freq)
             self.m_target_batch_list.append(target_boa)
             
             # uid = self.m_user2uid[user_id]
@@ -112,6 +105,7 @@ class _YELP_RESTAURANT(Dataset):
         i = idx
 
         input_i = self.m_input_batch_list[i]
+        input_freq_i = self.m_input_freq_batch_list[i]
         input_length_i = self.m_input_length_batch_list[i]
 
         user_i = self.m_user_batch_list[i]
@@ -120,13 +114,14 @@ class _YELP_RESTAURANT(Dataset):
         target_i = self.m_target_batch_list[i]
         target_length_i = self.m_target_length_batch_list[i]
         
-        return input_i, input_length_i, user_i, item_i, target_i, target_length_i, self.m_pad_id, self.m_vocab_size
+        return input_i, input_freq_i, input_length_i, user_i, item_i, target_i, target_length_i, self.m_pad_id, self.m_vocab_size
     
     @staticmethod
     def collate(batch):
         batch_size = len(batch)
 
         input_iter = []
+        input_freq_iter = []
         input_length_iter = []
         user_iter = []
         item_iter = []
@@ -136,10 +131,10 @@ class _YELP_RESTAURANT(Dataset):
         for i in range(batch_size):
             sample_i = batch[i]
             
-            input_length_i = sample_i[1]
+            input_length_i = sample_i[2]
             input_length_iter.append(input_length_i)
 
-            target_length_i = sample_i[5]
+            target_length_i = sample_i[6]
             target_length_iter.append(target_length_i)
 
         max_input_length_iter = max(input_length_iter)
@@ -148,27 +143,33 @@ class _YELP_RESTAURANT(Dataset):
         user_iter = []
         item_iter = []
 
+        freq_pad_id = float('-inf')
+
         for i in range(batch_size):
             sample_i = batch[i]
 
             input_i = copy.deepcopy(sample_i[0])
-            input_length_i = sample_i[1]
+            input_freq_i = copy.deepcopy(sample_i[1])
+            input_length_i = sample_i[2]
 
             # if input_i is None:
             #     print("error input is none", sample_i[0])
             # print(input_i)
             # print(len(input_i))
 
-            pad_id = sample_i[6]
-            vocab_size = sample_i[7]
+            pad_id = sample_i[7]
+            vocab_size = sample_i[8]
 
             input_i.extend([pad_id]*(max_input_length_iter-input_length_i))
             input_iter.append(input_i)
 
-            user_i = sample_i[2]
+            input_freq_i.extend([freq_pad_id]*(max_input_length_iter-input_length_i))
+            input_freq_iter.append(input_freq_i)
+
+            user_i = sample_i[3]
             user_iter.append(user_i)
 
-            item_i = sample_i[3]
+            item_i = sample_i[4]
             item_iter.append(item_i)
 
             # target_i = copy.deepcopy(sample_i[4])
@@ -176,7 +177,7 @@ class _YELP_RESTAURANT(Dataset):
 
             # target_i.extend([pad_id]*(max_target_length_iter-target_length_i))
             # target_iter.append(target_i)
-            target_index_i = copy.deepcopy(sample_i[4])
+            target_index_i = copy.deepcopy(sample_i[5])
             target_i = np.zeros(vocab_size)
             target_i[np.array(target_index_i, int)] = 1
             target_i = target_i[input_i]
@@ -184,6 +185,7 @@ class _YELP_RESTAURANT(Dataset):
         # exit()
         # print("input_iter", input_iter)
         input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
+        input_freq_iter_tensor = torch.from_numpy(np.array(input_freq_iter)).float()
         input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
         
         user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
@@ -191,7 +193,7 @@ class _YELP_RESTAURANT(Dataset):
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
 
-        return input_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor
+        return input_iter_tensor, input_freq_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor
 
 def f_merge_attr(args):
     vocab_file = args.vocab_file

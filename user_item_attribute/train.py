@@ -57,7 +57,7 @@ class _TRAINER(object):
 
 	def f_init_word_embed(self, pretrain_word_embed, network):
 		network.m_attr_embedding.weight.data.copy_(pretrain_word_embed)
-		# network.m_attr_embedding.weight.requires_grad = False
+		network.m_attr_embedding.weight.requires_grad = False
 
 	def f_train(self, pretrain_word_embed, train_data, eval_data, network, optimizer, logger_obj):
 		last_train_loss = 0
@@ -65,7 +65,7 @@ class _TRAINER(object):
 
 		overfit_indicator = 0
 
-		self.f_init_word_embed(pretrain_word_embed, network)
+		# self.f_init_word_embed(pretrain_word_embed, network)
 
 		for epoch in range(self.m_epochs):
 			print("++"*20, epoch, "++"*20)
@@ -137,8 +137,10 @@ class _TRAINER(object):
 
 		beta = 0.1
 		network.train()
-		for input_batch, input_length_batch, user_batch, item_batch, target_batch in train_data:
+		for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in train_data:
 			input_batch_gpu = input_batch.to(self.m_device)
+			
+			input_freq_batch_gpu = input_freq_batch.to(self.m_device)
 			input_length_batch_gpu = input_length_batch.to(self.m_device)
 
 			user_batch_gpu = user_batch.to(self.m_device)
@@ -149,7 +151,7 @@ class _TRAINER(object):
 			batch_size = input_batch.size(0)
 			# print("+++"*20)
 			# logits, z, z_mean, z_logvar = network(input_batch_gpu)
-			user_item_attr_logits, mask = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+			user_item_attr_logits, mask = network(input_batch_gpu, input_freq_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
 
 			NLL_loss = self.m_rec_loss(user_item_attr_logits, target_batch_gpu, mask)
 			# NLL_loss = NLL_loss
@@ -202,13 +204,14 @@ class _TRAINER(object):
 		beta = 0.1
 		network.eval()
 		with torch.no_grad():
-			for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+			for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
 
 				eval_flag = random.randint(1,101)
 				if eval_flag != 10:
 					continue
 
 				input_batch_gpu = input_batch.to(self.m_device)
+				input_freq_batch_gpu = input_freq_batch.to(self.m_device)
 				input_length_batch_gpu = input_length_batch.to(self.m_device)
 
 				user_batch_gpu = user_batch.to(self.m_device)
@@ -218,7 +221,7 @@ class _TRAINER(object):
 
 				batch_size = input_batch.size(0)
 
-				user_item_attr_logits, mask = network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+				user_item_attr_logits, mask = network(input_batch_gpu, input_freq_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
 
 				# target_batch_gpu = torch.gather(target_batch_gpu, 1, input_batch_gpu)
 

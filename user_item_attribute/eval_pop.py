@@ -81,7 +81,7 @@ class _EVAL(object):
 
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+            for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
 
                 # input_attr_num = torch.sum(input_length_batch, dim=1)
                 input_attr_num_list.extend(input_length_batch)
@@ -109,14 +109,15 @@ class _EVAL(object):
         precision_list = []
         recall_list = []
         mrr_list = []
-
+        topk = 1
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+            for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
                 
                 batch_size = input_batch.size(0)
 
                 input_batch_gpu = input_batch.to(self.m_device)
+                input_freq_batch_gpu = input_freq_batch.to(self.m_device)
                 input_length_batch_gpu = input_length_batch.to(self.m_device)
 
                 user_batch_gpu = user_batch.to(self.m_device)
@@ -124,8 +125,8 @@ class _EVAL(object):
 
                 target_batch_gpu = target_batch.to(self.m_device)
                 
-                user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
-                user_item_attr_logits = user_item_attr_logits_gpu.cpu()
+                # user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+                # user_item_attr_logits = user_item_attr_logits_gpu.cpu()
 
                 # precision_batch, recall_batch = self.f_debug_bow(input_batch, user_item_attr_logits, target_batch, k=1)
                 # print("=="*10, batch_index, "=="*10)
@@ -136,7 +137,7 @@ class _EVAL(object):
                 #     break
                 
                 # print("here")
-                precision_batch, recall_batch = self.f_eval_bow(input_batch, target_batch, k=1)
+                precision_batch, recall_batch = self.f_eval_bow(input_batch, target_batch, k=topk)
                 
                 # precision_batch, recall_batch = self.f_eval_bow(user_item_attr_logits, target_logits)
 

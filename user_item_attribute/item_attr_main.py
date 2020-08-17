@@ -16,9 +16,9 @@ from logger import _LOGGER
 import time
 from train import _TRAINER
 from model import _ATTR_NETWORK
-# from eval_attn import _EVAL
+from eval_attn import _EVAL
 from infer_attn import _INFER
-from eval_pop import _EVAL
+# from eval_pop import _EVAL
 # from eval_user_item_pop import _EVAL
 
 # from pytorch_visualize import *         

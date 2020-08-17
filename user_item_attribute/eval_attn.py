@@ -3,6 +3,8 @@ from numpy.core.numeric import indices
 import torch
 from nltk.translate.bleu_score import sentence_bleu
 import os
+
+from torch import nonzero
 from metric import get_bleu
 import torch.nn.functional as F
 import torch.nn as nn
@@ -77,7 +79,7 @@ class _EVAL(object):
 
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+            for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
 
                 # input_attr_num = torch.sum(input_length_batch, dim=1)
                 input_attr_num_list.extend(input_length_batch)
@@ -95,7 +97,7 @@ class _EVAL(object):
     def f_eval_new(self, train_data, eval_data):
         # self.f_init_user_item(eval_data)
 
-        self.f_data_analysis(train_data, eval_data)
+        # self.f_data_analysis(train_data, eval_data)
         # exit()
 
         self.f_get_user_item(train_data, eval_data)
@@ -106,33 +108,61 @@ class _EVAL(object):
         recall_list = []
         mrr_list = []
 
+        print('--'*10)
+        # print("user output weight", self.m_network.m_user_output.weight)
+        # print("item output weight", self.m_network.m_item_output.weight)
+
         self.m_network.eval()
         with torch.no_grad():
-            for input_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
+            pop_correct_num_total = 0
+            non_pop_correct_num_total = 0
+            pred_num_total = 0
+            topk = 1
+
+            for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
                 
                 batch_size = input_batch.size(0)
 
                 input_batch_gpu = input_batch.to(self.m_device)
+                input_freq_batch_gpu = input_freq_batch.to(self.m_device)
                 input_length_batch_gpu = input_length_batch.to(self.m_device)
 
                 user_batch_gpu = user_batch.to(self.m_device)
                 item_batch_gpu = item_batch.to(self.m_device)
 
+                # user_id = 11
+                # item_id = 8263
+                # if user_id not in user_batch_gpu:
+                #     continue
+                
+                # if item_id not in item_batch_gpu:
+                #     continue
+
+                # print("user id", user_id)
+                # print("item id", item_id)
+
+                # print("user_batch", user_batch_gpu)
+                # print("item batch", item_batch_gpu)
+
                 target_batch_gpu = target_batch.to(self.m_device)
                 
-                user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
+                user_item_attr_logits_gpu, mask = self.m_network(input_batch_gpu, input_freq_batch_gpu, input_length_batch_gpu, user_batch_gpu, item_batch_gpu)
                 user_item_attr_logits = user_item_attr_logits_gpu.cpu()
+                user_item_attr_logits = user_item_attr_logits.squeeze(-1)
+
+                # print(user_item_attr_logits.size())
+                # print(torch.argsort(-user_item_attr_logits, dim=1)[:, :10])
 
                 # precision_batch, recall_batch = self.f_debug_bow(input_batch, user_item_attr_logits, target_batch, k=1)
                 # print("=="*10, batch_index, "=="*10)
                 # # print("batch_index", batch_index)
                 # print(item_batch)
 
-                # if batch_index > 3:
-                #     break
+                pop_correct_num_batch, non_pop_correct_num_batch, precision_batch, recall_batch = self.f_eval_bow(user_item_attr_logits, target_batch, k=topk)
 
-                precision_batch, recall_batch = self.f_eval_bow(user_item_attr_logits, target_batch, k=1)
-                
+                pop_correct_num_total += pop_correct_num_batch
+                non_pop_correct_num_total += non_pop_correct_num_batch
+
                 # precision_batch, recall_batch = self.f_eval_bow(user_item_attr_logits, target_logits)
 
                 if precision_batch == 0 and recall_batch == 0:
@@ -140,6 +170,7 @@ class _EVAL(object):
                 
                 batch_index += 1
 
+                pred_num_total += topk*batch_size
                 precision_list.append(precision_batch)
                 recall_list.append(recall_batch)
 
@@ -152,6 +183,11 @@ class _EVAL(object):
 
         print("precision: ", np.mean(precision_list))
         print("recall: ", np.mean(recall_list))
+
+        pop_correct_ratio = pop_correct_num_total/pred_num_total
+        non_pop_correct_ratio = non_pop_correct_num_total/pred_num_total
+
+        print("pop_correct_ratio", pop_correct_ratio, "non_pop_correct_ratio", non_pop_correct_ratio, "pred_num_total", pred_num_total, "pop_correct_num_total", pop_correct_num_total, "non_pop_correct_num_total", non_pop_correct_num_total)
 
     def f_debug_bow(self, inputs, preds, targets, k=10):
         preds = preds.view(-1, preds.size(1))
@@ -196,11 +232,28 @@ class _EVAL(object):
         # print("indices", indices.size())
         preds = preds.view(-1, preds.size(1))
         _, indices = torch.topk(preds, k, -1)
-
+        
+        batch_size = preds.size(0)
         # print("indices", indices)
+        # for i in range(batch_size):
+        #     print("---"*10)
+        #     print(preds[i, indices[i]])
+            
         # print("targets", targets)
 
         true_pos = torch.gather(targets, 1, indices)
+
+        topk_threshold = 1
+
+        pop_correct_num = 0
+        non_pop_correct_num = 0
+        nonzero_index = true_pos.nonzero()
+        for i, j in enumerate(nonzero_index):
+            if j[1] < topk_threshold:
+                pop_correct_num += 1
+            else:
+                non_pop_correct_num += 1
+
         true_pos = torch.sum(true_pos, dim=1)
         true_pos = true_pos.float()
 
@@ -209,7 +262,7 @@ class _EVAL(object):
         if pos.nonzero().size(0) != len(pos):
             print("error")
             print(pos)
-            return 0, 0
+            return 0, 0, 0, 0
 
         recall = true_pos/pos
         precision = true_pos/k
@@ -217,7 +270,7 @@ class _EVAL(object):
         recall = torch.mean(recall)
         precision = torch.mean(precision)
 
-        return precision, recall
+        return pop_correct_num, non_pop_correct_num, precision, recall
 
     def _sample(self, dist, mode="greedy"):
         if mode == 'greedy':
