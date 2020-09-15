@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=2 python main.py --data_dir "../data/ml-25m" --data_name "movie" --vocab_file "vocab.json" --epoch_num 100 --train --batch_size 400 --learning_rate 0.0001 --print_interval 4000 --weight_decay 0.00000 --attr_emb_size 64 --user_emb_size 64 --item_emb_size 64

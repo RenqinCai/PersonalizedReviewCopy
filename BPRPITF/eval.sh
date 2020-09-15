@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python main.py --data_dir "../data/ml-25m" --data_name "ml" --vocab_file "vocab.json" --eval --batch_size 5 --model_path "../checkpoint/ml_BPRPITF/" --model_file "model_best_9_11_0_13.pt" --attr_emb_size 64 --user_emb_size 64 --item_emb_size 64
