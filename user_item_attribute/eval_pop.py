@@ -79,6 +79,8 @@ class _EVAL(object):
         target_attr_num_list = []
         input_attr_num_list = []
 
+        print("eval num", len(eval_data))
+ 
         self.m_network.eval()
         with torch.no_grad():
             for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
@@ -99,7 +101,7 @@ class _EVAL(object):
     def f_eval_new(self, train_data, eval_data):
         # self.f_init_user_item(eval_data)
 
-        self.f_data_analysis(train_data, eval_data)
+        # self.f_data_analysis(train_data, eval_data)
         # exit()
 
         self.f_get_user_item(train_data, eval_data)
@@ -109,7 +111,7 @@ class _EVAL(object):
         precision_list = []
         recall_list = []
         mrr_list = []
-        topk = 1
+        topk = 3
         self.m_network.eval()
         with torch.no_grad():
             for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:

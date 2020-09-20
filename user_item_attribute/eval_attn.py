@@ -117,7 +117,7 @@ class _EVAL(object):
             pop_correct_num_total = 0
             non_pop_correct_num_total = 0
             pred_num_total = 0
-            topk = 1
+            topk = 3
 
             for input_batch, input_freq_batch, input_length_batch, user_batch, item_batch, target_batch in eval_data:
                 
@@ -243,8 +243,7 @@ class _EVAL(object):
 
         true_pos = torch.gather(targets, 1, indices)
 
-        topk_threshold = 1
-
+        topk_threshold = k
         pop_correct_num = 0
         non_pop_correct_num = 0
         nonzero_index = true_pos.nonzero()

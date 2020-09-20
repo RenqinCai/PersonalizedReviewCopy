@@ -308,12 +308,9 @@ def remove_target_zero_row(args):
     new_valid_df = remove_target_zero_row_df(valid_df, "valid")
     new_valid_df.to_pickle(new_valid_data_file)
 
-    # new_test_df = remove_target_zero_row(test_df, "test")
-    # new_test_df.to_pickle(new_test_data_file)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default="../data/movie_attr_oov")
+    parser.add_argument('--data_dir', type=str, default="../data/ratebeer_attr_oov")
     parser.add_argument('--item_boa_file', type=str, default="item_attr.json")
 
     args = parser.parse_args()

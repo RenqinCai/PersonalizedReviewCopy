@@ -313,7 +313,7 @@ def remove_target_zero_row(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default="../data/movie_attr_oov")
+    parser.add_argument('--data_dir', type=str, default="../data/lthing_attr_oov")
     parser.add_argument('--item_boa_file', type=str, default="item_attr.json")
 
     args = parser.parse_args()

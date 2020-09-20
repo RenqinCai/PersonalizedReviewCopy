@@ -6,15 +6,16 @@ class _OPTIM:
         optimizer_type = args.optimizer
         lr = args.learning_rate
         momentum = args.momentum
-        # weight_decay = args.weight_decay
+        weight_decay = args.weight_decay
         # eps = args.eps
 
         if optimizer_type == "RMSProp":
             self.m_optimizer = optim.RMSProp(params, lr=lr,  momentum=momentum)
 
         elif optimizer_type == "Adam":
-            self.m_optimizer = optim.Adam(params, lr=lr)
-
+            self.m_optimizer = optim.Adam(params, lr=lr, weight_decay=weight_decay)
+        elif optimizer_type == "AdamW":
+            self.m_optimizer = optim.AdamW(params, lr=lr, weight_decay=weight_decay)
         else:
             raise NotImplementedError
 

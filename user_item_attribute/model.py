@@ -60,6 +60,10 @@ class _ATTR_NETWORK(nn.Module):
         return mask
 
     def forward(self, attr_input, attr_tf_input, lens, user_ids, item_ids):
+        # print("=="*10)
+        # print("attr_tf_input", attr_tf_input)
+        # exit()
+
         attr_x = self.m_attr_embedding(attr_input)
         attr_x = attr_x.transpose(0, 1)
         
@@ -73,29 +77,35 @@ class _ATTR_NETWORK(nn.Module):
         user_x = self.m_user_embedding(user_ids)
         user_x = self.m_user_linear(user_x)
 
-        # user_x = user_x.unsqueeze(2)
-        # user_attr_weight = torch.matmul(attr_x, user_x)
-        # user_attr_logits = self.m_output(user_attr_weight)
-        # # user_attr_logits = self.m_user_output(user_attr_weight)
-
-        # ## user_item_attr_logits: batch_size*seq_len*1
-
-        # user_item_attr_logits = user_attr_logits
-
-        ### user_x: batch_size*1*hidden_size
-        
         user_x = user_x.unsqueeze(2)
-        user_attr_weight = F.softmax(torch.matmul(attr_x, user_x).squeeze(), dim=-1)
+
+        user_attr_weight = torch.matmul(attr_x, user_x).squeeze()
+    
+        # user_attr_weight = F.sigmoid(torch.matmul(attr_x, user_x).squeeze(), dim=-1)
+        # user_attr_weight = F.softmax(user_attr_weight, dim=-1)
+
         user_attr_weight = user_attr_weight.unsqueeze(2)
         ### user_attr_logits: batch_size*seq_len*1
         user_attr_logits = self.m_user_output(user_attr_weight)
 
+        # user_item_attr_logits = user_attr_logits
         ### attr_tf_input: batch_size*seq_len
         ### item_attr_logits: batch_size*seq_len
-        item_attr_weight = F.softmax(attr_tf_input, dim=-1)
-        item_attr_weight = item_attr_weight.unsqueeze(2)
+        # item_attr_weight = F.softmax(attr_tf_input, dim=-1)
+        item_attr_weight = attr_tf_input.unsqueeze(2)
         item_attr_logits = self.m_item_output(item_attr_weight)
 
-        user_item_attr_logits = self.m_lambda*user_attr_logits+(1-self.m_lambda)*item_attr_logits
+        user_attr_logits = user_attr_logits.squeeze(-1)
+        item_attr_logits = item_attr_logits.squeeze(-1)
+        # print("user_attr_logits", user_attr_logits.size())
+        # print("item_attr_logits", item_attr_logits.size())
+
+        # print("lens", lens)
+        # print("user_attr_logits", user_attr_logits)
+        # print("item_attr_logits", item_attr_logits)
+        # exit()
+        user_item_attr_logits = user_attr_logits + item_attr_logits
+        # user_item_attr_logits = user_attr_logits*item_attr_logits
+        # user_item_attr_logits = self.m_lambda*user_attr_logits+(1-self.m_lambda)*item_attr_logits
 
         return user_item_attr_logits, mask

@@ -11,10 +11,6 @@ import pandas as pd
 import argparse
 import copy
 from nltk.corpus import stopwords
-from utils import OrderedCounter
-from review import _Review
-from item import _Item
-from user import _User
 import pickle
 import string
 import datetime

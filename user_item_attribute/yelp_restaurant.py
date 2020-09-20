@@ -48,34 +48,63 @@ class _YELP_RESTAURANT(Dataset):
         
         self.m_user2uid = {}
         self.m_item2iid = {}
-
+        
         userid_list = df.userid.tolist()
         itemid_list = df.itemid.tolist()
         # review_list = df.review.tolist()
         # tokens_list = df.token_idxs.tolist()
-        boa_list = df.boa.tolist()
+        attr_list = df.attr.tolist()
 
         for sample_index in range(self.m_sample_num):
         # for sample_index in range(1000):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
-            boa = boa_list[sample_index]    
+            attrlist_i = attr_list[sample_index]    
             
             # item_boa = item_boa_dict[str(item_id)]
             # input_boa = item_boa
             # input_boa_freq = [0 for i in range(len(item_boa))]
 
-            item_boa_boafreq = item_boa_dict[str(item_id)]  
-            item_boa = item_boa_boafreq[0]
-            item_freq = item_boa_boafreq[1]
+            # item_boa_boafreq = item_boa_dict[str(item_id)]  
+            # item_boa = item_boa_boafreq[0]
+            # item_freq = item_boa_boafreq[1]
 
-            input_boa = item_boa
+            item_attrdict_i = item_boa_dict[str(item_id)]  
+            item_attr_list_i = list(item_attrdict_i.keys())
+            item_attrfreq_list_i = list(item_attrdict_i.values())
+
+            """
+            scale the item freq into the range [0, 1]
+            """
+
+            def max_min_scale(val_list):
+                vals = np.array(val_list)
+                min_val = min(vals)
+                max_val = max(vals)
+                if max_val == min_val:
+                    scale_vals = np.zeros_like(vals)
+                    # print("scale_vals", scale_vals)
+                else:
+                    scale_vals = (vals-min_val)/(max_val-min_val)
+
+                scale_vals = scale_vals+1.0
+                scale_val_list = list(scale_vals)
+                # if max_val-min_val == 0:
+                #     print("--"*20)
+                #     print("error max_val-min_val", max_val, min_val)
+                #     print(item_id, val_list)
+                return scale_val_list
+
+            item_freq = max_min_scale(item_attrfreq_list_i)
+
+            input_boa = item_attr_list_i
             input_boa_freq = item_freq
 
-            target_boa = boa
+            # target_boa = boa
+            target_boa = attrlist_i
 
-            input_len = len(item_boa)
-            target_len = len(boa)
+            input_len = len(input_boa)
+            target_len = len(target_boa)
 
             self.m_input_batch_list.append(input_boa)
             self.m_input_freq_batch_list.append(input_boa_freq)
@@ -143,12 +172,15 @@ class _YELP_RESTAURANT(Dataset):
         user_iter = []
         item_iter = []
 
-        freq_pad_id = float('-inf')
+        # freq_pad_id = float('-inf')
+        freq_pad_id = float(0)
 
         for i in range(batch_size):
             sample_i = batch[i]
 
             input_i = copy.deepcopy(sample_i[0])
+            input_i = [int(i) for i in input_i]
+
             input_freq_i = copy.deepcopy(sample_i[1])
             input_length_i = sample_i[2]
 
@@ -180,6 +212,10 @@ class _YELP_RESTAURANT(Dataset):
             target_index_i = copy.deepcopy(sample_i[5])
             target_i = np.zeros(vocab_size)
             target_i[np.array(target_index_i, int)] = 1
+
+            # print("input_i", input_i)
+            # print("target_i", target_i)
+
             target_i = target_i[input_i]
             target_iter.append(target_i)
         # exit()
@@ -289,9 +325,10 @@ def f_get_bow_item(args):
     valid_df = pd.read_pickle(valid_data_file)
     test_df = pd.read_pickle(test_data_file)
 
-    print("columns", train_df.columns)
+    # sampled_train_num = 1000
+    # train_df = train_df[:sampled_train_num]
 
-    # exit()
+    print("columns", train_df.columns)
 
     print('train num', len(train_df))
     print('valid num', len(valid_df))
@@ -319,9 +356,13 @@ def f_get_bow_item(args):
             print("error review boa")
         return boa_freq_map
 
-    train_data_file = data_dir+'/new_train.pickle'
-    valid_data_file = data_dir+'/new_valid.pickle'
-    test_data_file = data_dir+'/new_test.pickle'
+    train_data_file = data_dir+'/new_train_TF.pickle'
+    valid_data_file = data_dir+'/new_valid_TF.pickle'
+    test_data_file = data_dir+'/new_test_TF.pickle'
+
+    # train_data_file = data_dir+'/new_train.pickle'
+    # valid_data_file = data_dir+'/new_valid.pickle'
+    # test_data_file = data_dir+'/new_test.pickle'
 
     print("--"*20)
     print("training data")
@@ -379,11 +420,38 @@ def f_get_bow_item(args):
 
         return [top_a, top_a_freq]
 
+    def get_most_freq_val_DF(val_list):
+        
+        a = []
+        for i in val_list:
+            keys_i = i.keys()
+            a.extend(list(keys_i))
+
+        a = Counter(a)
+
+        sorted_a = sorted(a.items(), key=lambda item: item[1], reverse=True)
+        a = [k for k, v in sorted_a]
+        a_freq = [v for k, v in sorted_a]
+        
+        if len(a) == 0:
+            print("error")
+
+        top_k = 100
+        top_a = a[:top_k]
+        top_a_freq = a_freq[:top_k]
+
+        if len(top_a) == 0:
+            print("error item freq")
+
+        return [top_a, top_a_freq]
+
     item_boa_dict = train_df.groupby('itemid')['boa'].apply(list)
+    # item_boa_dict = item_boa_dict.apply(lambda row: get_most_freq_val_DF(row))
     item_boa_dict = item_boa_dict.apply(lambda row: get_most_freq_val(row))
     item_boa_dict = dict(item_boa_dict)
 
     user_boa_dict = train_df.groupby('userid')['boa'].apply(list)
+    # user_boa_dict = user_boa_dict.apply(lambda row: get_most_freq_val_DF(row))
     user_boa_dict = user_boa_dict.apply(lambda row: get_most_freq_val(row))
     user_boa_dict = dict(user_boa_dict)
 
@@ -396,6 +464,7 @@ def f_get_bow_item(args):
         itemid_list = df.itemid.tolist()
         review_list = df.review.tolist()
         boa_list = df.boa.tolist()
+        rating_list = df.rating.tolist()
         # rating_list = df.rating.tolist()
 
         data_list = []
@@ -404,8 +473,12 @@ def f_get_bow_item(args):
             userid_i = userid_list[sample_i]
             itemid_i = itemid_list[sample_i]
             review_i = review_list[sample_i]
+            
             boa_map_i = boa_list[sample_i]
             boa_i = list(boa_map_i.keys())
+
+            rating_i = rating_list[sample_i]
+
             # rating_i = rating_list[sample_i]
 
             item_boa_boafreq_list = item_boa_dict[itemid_i]
@@ -417,11 +490,11 @@ def f_get_bow_item(args):
                 continue
 
             # boa_i = set(boa_i)
-            sub_data = [userid_i, itemid_i, review_i, boa_i]
+            sub_data = [userid_i, itemid_i, review_i, boa_map_i, rating_i]
             data_list.append(sub_data)
 
         new_df = pd.DataFrame(data_list)
-        new_df.columns = ['userid', 'itemid', 'review', 'boa']
+        new_df.columns = ['userid', 'itemid', 'review', 'boa', 'rating']
         print("output sample num", len(new_df))
 
         return new_df
@@ -435,12 +508,14 @@ def f_get_bow_item(args):
     new_test_df = remove_target_zero_row(new_test_df, "test")
     new_test_df.to_pickle(test_data_file)
 
+    # item_boa_file_name = "item_boa_DF.json"
     item_boa_file_name = "item_boa.json"
 
     item_boa_abs_file_name = os.path.join(data_dir, item_boa_file_name)
     with open(item_boa_abs_file_name, 'w') as f:
         f.write(json.dumps(item_boa_dict))
 
+    # user_boa_file_name = "user_boa_DF.json"
     user_boa_file_name = "user_boa.json"
     user_boa_abs_file_name = os.path.join(data_dir, user_boa_file_name)
 
@@ -483,16 +558,97 @@ def pretrain_word2vec(args):
     model.save(model_file)
     print("--"*10, "!done!", "--"*10)
 
+def remove_target_zero_row(args):
+    data_dir = args.data_dir
+    train_data_file = data_dir + "/train.pickle"
+    valid_data_file = data_dir + "/valid.pickle"
+    # test_data_file = data_dir+"/test.pickle"
+
+    train_df = pd.read_pickle(train_data_file)
+    valid_df = pd.read_pickle(valid_data_file)
+    # test_df = pd.read_pickle(test_data_file)
+
+    print("columns", train_df.columns)
+
+    print('train num', len(train_df))
+    print('valid num', len(valid_df))
+    # print('test num', len(test_df))
+
+    item_boa_file = args.item_boa_file
+
+    with open(os.path.join(data_dir, item_boa_file), 'r',encoding='utf8') as f:
+        item_boa_dict = json.loads(f.read())
+
+    def remove_target_zero_row_df(df, train_valid_test_flag):
+        sample_num = len(df)
+
+        print("=="*10, train_valid_test_flag, "=="*10)
+        print("input sample num", sample_num)
+
+        userid_list = df.userid.tolist()
+        itemid_list = df.itemid.tolist()
+        attrlist_list = df.attr.tolist()
+        # rating_list = df.rating.tolist()
+        # rating_list = df.rating.tolist()
+
+        data_list = []
+
+        for sample_i in range(sample_num):
+            userid_i = userid_list[sample_i]
+            itemid_i = itemid_list[sample_i]
+
+            attrlist_i = attrlist_list[sample_i]
+
+            # rating_i = rating_list[sample_i]
+
+            item_boa_boafreq_list = item_boa_dict[str(itemid_i)]
+    #         print(item_boa_boafreq_list)
+            item_boa = list(item_boa_boafreq_list.keys())
+            item_boa = [int(i) for i in item_boa]
+            item_boafreq = list(item_boa_boafreq_list.values())
+            
+            
+            common_boa = list(set(attrlist_i) & set(item_boa))
+            
+            if len(common_boa) == 0:
+                print("---"*10)
+                print(item_boa)
+                print(attrlist_i)
+                print(common_boa)
+                continue
+
+            # boa_i = set(boa_i)
+            sub_data = [userid_i, itemid_i, attrlist_i]
+            data_list.append(sub_data)
+        
+        new_df = pd.DataFrame(data_list)
+        print(new_df.head())
+        new_df.columns = ['userid', 'itemid', 'attr']
+        print("output sample num", len(new_df))
+
+        return new_df
+
+    new_train_data_file = data_dir + "/new_train.pickle"
+    new_valid_data_file = data_dir + "/new_valid.pickle"
+
+    new_train_df = remove_target_zero_row_df(train_df, "train")
+    new_train_df.to_pickle(new_train_data_file)
+
+    new_valid_df = remove_target_zero_row_df(valid_df, "valid")
+    new_valid_df.to_pickle(new_valid_data_file)
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default="../data/yelp_restaurant")
+    parser.add_argument('--data_dir', type=str, default="../data/yelp_restaurant_attr_oov")
     parser.add_argument('--vocab_file', type=str, default="vocab.json")
     parser.add_argument('--attr_file', type=str, default="attr.csv")
+    parser.add_argument('--item_boa_file', type=str, default="item_attr.json")
 
     args = parser.parse_args()
 
-    pretrain_word2vec(args)
+    remove_target_zero_row(args)
+    # pretrain_word2vec(args)
 
     # f_merge_attr(args)
     # f_get_bow_item(args)
