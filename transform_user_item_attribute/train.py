@@ -82,24 +82,24 @@ class _TRAINER(object):
 				print("++"*10, epoch, "++"*10)
 
 				s_time = datetime.datetime.now()
-				# self.f_eval_epoch(eval_data, network, optimizer, logger_obj)
+				self.f_eval_epoch(eval_data, network, optimizer, logger_obj)
 				e_time = datetime.datetime.now()
 
 				print("validation epoch duration", e_time-s_time)
 
-				# if last_eval_loss == 0:
-				# 	last_eval_loss = self.m_mean_eval_loss
+				if last_eval_loss == 0:
+					last_eval_loss = self.m_mean_eval_loss
 
-				# elif last_eval_loss < self.m_mean_eval_loss:
-				# 	print("!"*10, "error val loss increase", "!"*10, "last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
+				elif last_eval_loss < self.m_mean_eval_loss:
+					print("!"*10, "error val loss increase", "!"*10, "last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
 					
-				# 	overfit_indicator += 1
+					overfit_indicator += 1
 
-				# 	# if overfit_indicator > self.m_overfit_epoch_threshold:
-				# 	# 	break
-				# else:
-				# 	print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
-				# 	last_eval_loss = self.m_mean_eval_loss
+					# if overfit_indicator > self.m_overfit_epoch_threshold:
+					# 	break
+				else:
+					print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
+					last_eval_loss = self.m_mean_eval_loss
 
 				print("--"*10, epoch, "--"*10)
 
@@ -204,10 +204,15 @@ class _TRAINER(object):
 
 			user_attr_item_logits, attr_item_mask, item_attr_user_logits, attr_user_mask, logits, mask = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, attr_index_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, attr_index_user_gpu, user_gpu, attr_length_gpu, logits)
 
-			NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
+			# NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
+			NLL_loss = self.m_rec_loss(logits, target_gpu, attr_item_mask)
 			loss = NLL_loss
+			precision, recall = get_precision_recall(logits.cpu(), target_batch, attr_item_mask.cpu(), k=3)
 
-			precision, recall = get_precision_recall(logits.cpu(), target_batch, k=3)
+			# NLL_loss = self.m_rec_loss(user_attr_item_logits, target_gpu, attr_item_mask)
+			# loss = NLL_loss
+			# precision, recall = get_precision_recall(user_attr_item_logits.cpu(), target_batch, k=3)
+			
 			if precision != 0 and recall != 0:
 				loss_list.append(loss.item()) 
 				precision_list.append(precision)
@@ -289,15 +294,14 @@ class _TRAINER(object):
 				user_attr_item_logits, attr_item_mask, item_attr_user_logits, attr_user_mask, logits, mask = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, attr_index_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, attr_index_user_gpu, user_gpu, attr_length_gpu, logits)
 
 				# target_batch_gpu = torch.gather(target_batch_gpu, 1, input_batch_gpu)
-
-				NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
-				
-				# NLL_loss = NLL_loss/batch_size
-
+				# NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
+				NLL_loss = self.m_rec_loss(logits, target_gpu, attr_item_mask)
 				loss = NLL_loss
+				precision, recall = get_precision_recall(logits.cpu(), target_batch, attr_item_mask.cpu(), k=3)
 
-				precision, recall = get_precision_recall(logits.cpu(), target_batch, k=3)
-				# print("precision", precision, "recall", recall)
+				# NLL_loss = self.m_rec_loss(user_attr_item_logits, target_gpu, attr_item_mask)
+				# loss = NLL_loss
+				# precision, recall = get_precision_recall(user_attr_item_logits.cpu(), target_batch, k=3)
 
 				if precision != 0 and recall != 0:
 					loss_list.append(loss.item()) 

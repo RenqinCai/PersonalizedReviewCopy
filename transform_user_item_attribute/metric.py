@@ -61,7 +61,14 @@ def get_recall(preds, targets, k=10):
 
     return recall
 
-def get_precision_recall(preds, targets, k=1):
+def get_precision_recall(preds, targets, mask, k=1):
+    max_preds, _ = torch.max(preds, dim=1, keepdim=True)
+    exp_preds = torch.exp(preds-max_preds)
+    mask = ~mask
+    exp_preds = exp_preds*(mask.float())
+
+    preds = exp_preds/torch.sum(exp_preds, dim=1, keepdim=True)
+
     preds = preds.view(-1, preds.size(1))
     _, indices = torch.topk(preds, k, -1)
 

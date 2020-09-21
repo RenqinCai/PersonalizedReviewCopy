@@ -85,8 +85,12 @@ class _WINE(Dataset):
 
             attr_index_item_i = []
             for attr_i in attr_list_item_i:
-                attr_index = attr_list_user_item_i.index(attr_i)
+                attr_index = attr_list_item_i.index(attr_i)
                 attr_index_item_i.append(attr_index)
+
+            # for attr_i in attr_list_item_i:
+            #     attr_index = attr_list_user_item_i.index(attr_i)
+            #     attr_index_item_i.append(attr_index)
             
             attr_index_user_i = []
             for attr_i in attr_list_user_i:
@@ -287,7 +291,8 @@ class _WINE(Dataset):
             # print("attr_input_i", attr_input_i)
             # print("target_i", target_i)
 
-            target_i = target_i[attr_input_i]
+            # target_i = target_i[attr_input_i]
+            target_i = target_i[attr_item_i]
             target_iter.append(target_i)
         # exit()
         # print("input_iter", input_iter)
