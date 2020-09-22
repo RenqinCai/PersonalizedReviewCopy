@@ -75,29 +75,7 @@ def get_precision_recall(preds, targets, mask, k=1):
     pos = torch.sum(targets, dim=1)
 
     if pos.nonzero().size(0) != len(pos):
-        # print("error")
-        # print(pos)
         return 0, 0
-    # recall_list = []
-    # precision_list = []
-
-    # for i, pos_i in enumerate(pos):
-    #     nonzero_num_i = pos[i]
-    #     indicies_i = indices[i][:nonzero_num_i]
-    #     targets_i = targets[i]
-
-    #     true_pos_i = targets_i[indicies_i]
-    #     true_pos_i = torch.sum(true_pos_i)
-    #     true_pos_i = true_pos_i.float()
-
-    #     recall_i = true_pos_i/pos_i
-    #     recall_list.append(recall_i)
-
-    #     precision_i = true_pos_i/nonzero_num_i
-    #     precision_list.append(precision_i)
-
-    # recall = np.mean(recall_list)
-    # precision = np.mean(precision_list)
 
     true_pos = torch.gather(targets, 1, indices)
     true_pos = torch.sum(true_pos, dim=1)

@@ -10,8 +10,8 @@ from collections import Counter
 from nltk.tokenize import TweetTokenizer
 import gensim
 
-class _MOVIE(Dataset):
-    def __init__(self, args, vocab_obj, df, item_boa_dict, user_boa_dict):
+class _WINE(Dataset):
+    def __init__(self, args, vocab_obj, df, boa_item_dict, boa_user_dict):
         super().__init__()
 
         self.m_data_dir = args.data_dir
@@ -38,13 +38,22 @@ class _MOVIE(Dataset):
 
         ###get length
         
-        self.m_input_batch_list = []
-        self.m_input_freq_batch_list = []
-        self.m_input_length_batch_list = []
-        self.m_user_batch_list = []
+        self.m_attr_item_list = []
+        self.m_attr_tf_item_list = []
+        self.m_attr_length_item_list = []
+        self.m_attr_index_item_list = []
         self.m_item_batch_list = []
-        self.m_target_batch_list = []
-        self.m_target_length_batch_list = []
+
+        self.m_attr_user_list = []
+        self.m_attr_tf_user_list = []
+        self.m_attr_length_user_list = []
+        self.m_attr_index_user_list = []
+        self.m_user_batch_list = []
+        
+        self.m_attr_input_list = []
+        self.m_attr_length_input_list = []
+
+        self.m_target_list = []
         
         self.m_user2uid = {}
         self.m_item2iid = {}
@@ -55,23 +64,37 @@ class _MOVIE(Dataset):
         # tokens_list = df.token_idxs.tolist()
         attr_list = df.attr.tolist()
 
+        # print("boa_user_dict", boa_user_dict)
+
         for sample_index in range(self.m_sample_num):
         # for sample_index in range(1000):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
             attrlist_i = attr_list[sample_index]    
+
+            attrdict_item_i = boa_item_dict[str(item_id)]              
+            attr_list_item_i = list(attrdict_item_i.keys())
+            attrfreq_list_item_i = list(attrdict_item_i.values())
+
+            attrdict_user_i = boa_user_dict[str(user_id)]
+            attr_list_user_i = list(attrdict_user_i.keys())
+            attrfreq_list_user_i = list(attrdict_user_i.values())
             
-            # item_boa = item_boa_dict[str(item_id)]
-            # input_boa = item_boa
-            # input_boa_freq = [0 for i in range(len(item_boa))]
+            attr_list_user_item_i = list(set(attr_list_item_i).union(set(attr_list_user_i)))
+            # attr_array_user_item_i = np.array(attr_list_user_item_i)
 
-            # item_boa_boafreq = item_boa_dict[str(item_id)]  
-            # item_boa = item_boa_boafreq[0]
-            # item_freq = item_boa_boafreq[1]
-
-            item_attrdict_i = item_boa_dict[str(item_id)]  
-            item_attr_list_i = list(item_attrdict_i.keys())
-            item_attrfreq_list_i = list(item_attrdict_i.values())
+            attr_index_item_i = []
+            # for attr_i in attr_list_item_i:
+            #     attr_index = attr_list_item_i.index(attr_i)
+            #     attr_index_item_i.append(attr_index)
+            for attr_i in attr_list_item_i:
+                attr_index = attr_list_user_item_i.index(attr_i)
+                attr_index_item_i.append(attr_index)
+            
+            attr_index_user_i = []
+            for attr_i in attr_list_user_i:
+                attr_index = attr_list_user_item_i.index(attr_i)
+                attr_index_user_i.append(attr_index)
 
             """
             scale the item freq into the range [0, 1]
@@ -95,141 +118,208 @@ class _MOVIE(Dataset):
                 #     print(item_id, val_list)
                 return scale_val_list
 
-            item_freq = max_min_scale(item_attrfreq_list_i)
+            attrfreq_list_item_i = max_min_scale(attrfreq_list_item_i)
 
-            input_boa = item_attr_list_i
-            input_boa_freq = item_freq
-
-            # target_boa = boa
-            target_boa = attrlist_i
-
-            input_len = len(input_boa)
-            target_len = len(target_boa)
-
-            self.m_input_batch_list.append(input_boa)
-            self.m_input_freq_batch_list.append(input_boa_freq)
-            self.m_target_batch_list.append(target_boa)
-            
-            # uid = self.m_user2uid[user_id]
-            self.m_user_batch_list.append(user_id)
-
-            # iid = self.m_item2iid[item_id]
+            self.m_attr_item_list.append(attr_list_item_i)
+            self.m_attr_tf_item_list.append(attrfreq_list_item_i)
+            self.m_attr_length_item_list.append(len(attr_list_item_i))
+            self.m_attr_index_item_list.append(attr_index_item_i)
             self.m_item_batch_list.append(item_id)
+            
+            attrfreq_list_user_i = max_min_scale(attrfreq_list_user_i)
 
-            self.m_input_length_batch_list.append(input_len)
-            self.m_target_length_batch_list.append(target_len)
-        
-            # exit()
-        
-        print("... load train data ...", len(self.m_item_batch_list), len(self.m_user_batch_list), len(self.m_input_batch_list), len(self.m_target_batch_list), len(self.m_input_length_batch_list), len(self.m_target_length_batch_list))
+            self.m_attr_user_list.append(attr_list_user_i)
+            self.m_attr_tf_user_list.append(attrfreq_list_user_i)
+            self.m_attr_length_user_list.append(len(attr_list_user_i))
+            self.m_attr_index_user_list.append(attr_index_user_i)
+            self.m_user_batch_list.append(user_id)
+            
+            self.m_attr_input_list.append(attr_list_user_item_i)
+            attr_length_input = len(attr_list_user_item_i)
+            self.m_attr_length_input_list.append(attr_length_input)
+
+            target = attrlist_i
+            self.m_target_list.append(target)
+                
+        print("... load train data ...", len(self.m_attr_item_list), len(self.m_attr_tf_item_list), len(self.m_attr_user_list), len(self.m_attr_tf_user_list))
         # exit()
 
     def __len__(self):
-        return len(self.m_input_batch_list)
+        return len(self.m_attr_item_list)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
         i = idx
-
-        input_i = self.m_input_batch_list[i]
-        input_freq_i = self.m_input_freq_batch_list[i]
-        input_length_i = self.m_input_length_batch_list[i]
-
-        user_i = self.m_user_batch_list[i]
+        
+        attr_item_i = self.m_attr_item_list[i]
+        attr_tf_item_i = self.m_attr_tf_item_list[i]
+        attr_length_item_i = self.m_attr_length_item_list[i]
+        attr_index_item_i = self.m_attr_index_item_list[i]
+        
         item_i = self.m_item_batch_list[i]
 
-        target_i = self.m_target_batch_list[i]
-        target_length_i = self.m_target_length_batch_list[i]
-        
-        return input_i, input_freq_i, input_length_i, user_i, item_i, target_i, target_length_i, self.m_pad_id, self.m_vocab_size
+        attr_user_i = self.m_attr_user_list[i]
+        attr_tf_user_i = self.m_attr_tf_user_list[i]
+        attr_length_user_i = self.m_attr_length_user_list[i]
+        attr_index_user_i = self.m_attr_index_user_list[i]
+
+        user_i = self.m_user_batch_list[i]
+
+        attr_input_i = self.m_attr_input_list[i]
+        attr_length_input_i = self.m_attr_length_input_list[i]
+
+        target_i = self.m_target_list[i]
+
+        sample_i = {"attr_item": attr_item_i, "attr_tf_item": attr_tf_item_i, "attr_length_item": attr_length_item_i, "attr_index_item": attr_index_item_i, "item": item_i, "attr_user": attr_user_i, "attr_tf_user": attr_tf_user_i, "attr_length_user": attr_length_user_i, "attr_index_user": attr_index_user_i, "user": user_i, "attr_input": attr_input_i, "attr_length_input": attr_length_input_i, "target": target_i, "vocab_size": self.m_vocab_size}
+
+        return sample_i
+
+        # return attr_item_i, attr_tf_item_i, attr_length_item_i, attr_index_item_i, item_i, attr_user_i, attr_tf_user_i, attr_length_user_i, attr_index_user_i, user_i, attr_input_i, attr_length_input_i, target_i
+
     
     @staticmethod
     def collate(batch):
         batch_size = len(batch)
 
-        input_iter = []
-        input_freq_iter = []
-        input_length_iter = []
-        user_iter = []
+        attr_item_iter = []
+        attr_tf_item_iter = []
+        attr_length_item_iter = []
+        attr_index_item_iter = []
+        attr_index_item_iter_debug = []
         item_iter = []
+
+        attr_user_iter = []
+        attr_tf_user_iter = []
+        attr_length_user_iter = []
+        attr_index_user_iter = []
+        user_iter = []
+
+        attr_input_iter = []
+        attr_length_iter = []
         target_iter = []
-        target_length_iter = []
+
+        attr_length_item_iter = []
+        attr_length_user_iter = []
 
         for i in range(batch_size):
             sample_i = batch[i]
             
-            input_length_i = sample_i[2]
-            input_length_iter.append(input_length_i)
+            attr_length_item_i = sample_i["attr_length_item"]
+            attr_length_item_iter.append(attr_length_item_i)
 
-            target_length_i = sample_i[6]
-            target_length_iter.append(target_length_i)
+            attr_length_user_i = sample_i["attr_length_user"]
+            attr_length_user_iter.append(attr_length_user_i)
 
-        max_input_length_iter = max(input_length_iter)
-        max_target_length_iter = max(target_length_iter)
+            attr_length_i = sample_i["attr_length_input"]
+            attr_length_iter.append(attr_length_i)
 
-        user_iter = []
-        item_iter = []
+        max_attr_length_item_iter = max(attr_length_item_iter)
+        max_attr_length_user_iter = max(attr_length_user_iter)
+        max_attr_length_iter = max(attr_length_iter)
 
         # freq_pad_id = float('-inf')
         freq_pad_id = float(0)
+        pad_id = 0
 
         for i in range(batch_size):
             sample_i = batch[i]
 
-            input_i = copy.deepcopy(sample_i[0])
-            input_i = [int(i) for i in input_i]
+            attr_item_i = copy.deepcopy(sample_i["attr_item"])
+            attr_item_i = [int(i) for i in attr_item_i]
 
-            input_freq_i = copy.deepcopy(sample_i[1])
-            input_length_i = sample_i[2]
+            attr_tf_item_i = copy.deepcopy(sample_i['attr_tf_item'])
+            attr_length_item_i = sample_i["attr_length_item"]
+            attr_index_item_i = copy.deepcopy(sample_i["attr_index_item"])
+            
+            attr_item_i.extend([pad_id]*(max_attr_length_item_iter-attr_length_item_i))
+            attr_item_iter.append(attr_item_i)
 
-            # if input_i is None:
-            #     print("error input is none", sample_i[0])
-            # print(input_i)
-            # print(len(input_i))
+            attr_tf_item_i.extend([freq_pad_id]*(max_attr_length_item_iter-attr_length_item_i))
+            attr_tf_item_iter.append(attr_tf_item_i)
 
-            pad_id = sample_i[7]
-            vocab_size = sample_i[8]
+            attr_index_item_i.extend([0]*(max_attr_length_item_iter-attr_length_item_i))
+            attr_index_item_iter.append(attr_index_item_i)
 
-            input_i.extend([pad_id]*(max_input_length_iter-input_length_i))
-            input_iter.append(input_i)
-
-            input_freq_i.extend([freq_pad_id]*(max_input_length_iter-input_length_i))
-            input_freq_iter.append(input_freq_i)
-
-            user_i = sample_i[3]
-            user_iter.append(user_i)
-
-            item_i = sample_i[4]
+            item_i = sample_i["item"]
             item_iter.append(item_i)
 
+            attr_user_i = copy.deepcopy(sample_i["attr_user"])
+            attr_user_i = [int(i) for i in attr_user_i]
+
+            attr_tf_user_i = copy.deepcopy(sample_i['attr_tf_user'])
+            attr_length_user_i = sample_i["attr_length_user"]
+            attr_index_user_i = copy.deepcopy(sample_i["attr_index_user"])
+
+            attr_user_i.extend([pad_id]*(max_attr_length_user_iter-attr_length_user_i))
+            attr_user_iter.append(attr_user_i)
+
+            attr_tf_user_i.extend([freq_pad_id]*(max_attr_length_user_iter-attr_length_user_i))
+            attr_tf_user_iter.append(attr_tf_user_i)
+
+            attr_index_user_i.extend([0]*(max_attr_length_user_iter-attr_length_user_i))
+            attr_index_user_iter.append(attr_index_user_i)
+
+            user_i = sample_i["user"]
+            user_iter.append(user_i)
+
+            vocab_size = sample_i["vocab_size"]
             # target_i = copy.deepcopy(sample_i[4])
             # target_length_i = sample_i[5]
+            
+            attr_length_i = sample_i["attr_length_input"]
+
+            tmp = np.zeros(attr_length_i)
+            tmp_ones_index = copy.deepcopy(sample_i["attr_index_item"])
+            tmp[tmp_ones_index] = 1
+            tmp = np.pad(tmp, (0, (max_attr_length_iter-attr_length_i)), 'constant')
+            attr_index_item_iter_debug.append(tmp)
+
+            # tmp = np.zeros(attr_length_i)
+            # tmp[attr_index_user_i] = 1
+            # tmp = np.pad(tmp, (0, max_attr_length_iter-attr_length_i), 'constant')
+            # attr_index_user_iter.append(tmp)
+
+            attr_input_i = copy.deepcopy(sample_i["attr_input"])
+            attr_input_i = [int(i) for i in attr_input_i]
+            attr_input_i.extend([pad_id]*(max_attr_length_iter-attr_length_i))
+            attr_input_iter.append(attr_input_i)
 
             # target_i.extend([pad_id]*(max_target_length_iter-target_length_i))
             # target_iter.append(target_i)
-            target_index_i = copy.deepcopy(sample_i[5])
+            target_index_i = copy.deepcopy(sample_i["target"])
             target_i = np.zeros(vocab_size)
             target_i[np.array(target_index_i, int)] = 1
 
-            # print("input_i", input_i)
+            # print("attr_input_i", attr_input_i)
             # print("target_i", target_i)
 
-            target_i = target_i[input_i]
+            target_i = target_i[attr_input_i]
+            # target_i = target_i[attr_item_i]
             target_iter.append(target_i)
         # exit()
         # print("input_iter", input_iter)
-        input_iter_tensor = torch.from_numpy(np.array(input_iter)).long()
-        input_freq_iter_tensor = torch.from_numpy(np.array(input_freq_iter)).float()
-        input_length_iter_tensor = torch.from_numpy(np.array(input_length_iter)).long()
-        
-        user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
+
+        attr_item_iter_tensor = torch.from_numpy(np.array(attr_item_iter)).long()
+        attr_tf_item_iter_tensor = torch.from_numpy(np.array(attr_tf_item_iter)).float()
+        attr_length_item_iter_tensor = torch.from_numpy(np.array(attr_length_item_iter)).long()
+        attr_index_item_iter_tensor = torch.from_numpy(np.array(attr_index_item_iter)).long()
+        attr_index_item_iter_debug_tensor = torch.from_numpy(np.array(attr_index_item_iter_debug)).long()
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
+
+        attr_user_iter_tensor = torch.from_numpy(np.array(attr_user_iter)).long()
+        attr_tf_user_iter_tensor = torch.from_numpy(np.array(attr_tf_user_iter)).float()
+        attr_length_user_iter_tensor = torch.from_numpy(np.array(attr_length_user_iter)).long()
+        attr_index_user_iter_tensor = torch.from_numpy(np.array(attr_index_user_iter)).long()
+        user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
+
+        attr_input_iter_tensor = torch.from_numpy(np.array(attr_input_iter)).long()
+        attr_length_iter_tensor = torch.from_numpy(np.array(attr_length_iter)).long()
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
 
-        return input_iter_tensor, input_freq_iter_tensor, input_length_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor
+        return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, attr_index_item_iter_tensor, attr_index_item_iter_debug_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, attr_index_user_iter_tensor, user_iter_tensor, attr_input_iter_tensor, attr_length_iter_tensor, target_iter_tensor
 
 def remove_target_zero_row(args):
     data_dir = args.data_dir

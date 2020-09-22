@@ -40,10 +40,10 @@ class _TRAINER(object):
 		# self.m_x0 = args.x0
 		# self.m_k = args.k
 		
-		self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
+		# self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
 		# self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
 		# self.m_rec_loss = _REC_LOSS(self.m_pad_idx, self.m_device)
-		# self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
+		self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
 
 		self.m_train_step = 0
 		self.m_valid_step = 0
@@ -174,20 +174,20 @@ class _TRAINER(object):
 		logger_obj.f_add_output2IO(" "*10+"training the user and item encoder"+" "*10)
 		# logger_obj.f_add_output2IO("--"*20)
 
-		beta = 0.1
-
 		tmp_loss_list = []
 		tmp_precision_list = []
 		tmp_recall_list = []
 
 		network.train()
-		for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, attr_index_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, attr_index_user_batch, user_batch, attr_input_batch, attr_length_batch, target_batch in train_data:
+		for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, attr_index_item_batch, attr_index_item_iter_debug_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, attr_index_user_batch, user_batch, attr_input_batch, attr_length_batch, target_batch in train_data:
 			
 			attr_item_gpu = attr_item_batch.to(self.m_device)
 			attr_tf_item_gpu = attr_tf_item_batch.to(self.m_device)
 			attr_length_item_gpu = attr_length_item_batch.to(self.m_device)
 			attr_index_item_gpu = attr_index_item_batch.to(self.m_device)
 			item_gpu = item_batch.to(self.m_device)
+
+			attr_index_item_iter_debug_gpu = attr_index_item_iter_debug_batch.to(self.m_device)
 
 			attr_user_gpu = attr_user_batch.to(self.m_device)
 			attr_tf_user_gpu = attr_tf_user_batch.to(self.m_device)
@@ -204,10 +204,9 @@ class _TRAINER(object):
 
 			user_attr_item_logits, attr_item_mask, item_attr_user_logits, attr_user_mask, logits, mask = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, attr_index_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, attr_index_user_gpu, user_gpu, attr_length_gpu, logits)
 
-			# NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
-			NLL_loss = self.m_rec_loss(logits, target_gpu, attr_item_mask)
+			NLL_loss = self.m_rec_loss(logits, target_gpu, mask, attr_index_item_iter_debug_gpu)
 			loss = NLL_loss
-			precision, recall = get_precision_recall(logits.cpu(), target_batch, attr_item_mask.cpu(), k=3)
+			precision, recall = get_precision_recall(logits.cpu(), target_batch, mask.cpu(), k=3)
 
 			# NLL_loss = self.m_rec_loss(user_attr_item_logits, target_gpu, attr_item_mask)
 			# loss = NLL_loss
@@ -266,16 +265,17 @@ class _TRAINER(object):
 		logger_obj.f_add_output2IO(" "*10+" eval the user and item encoder"+" "*10)
 		# logger_obj.f_add_output2IO("--"*20)
 
-		beta = 0.1
 		network.eval()
 		with torch.no_grad():
-			for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, attr_index_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, attr_index_user_batch, user_batch, attr_input_batch, attr_length_batch, target_batch in eval_data:
+			for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, attr_index_item_batch, attr_index_item_iter_debug_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, attr_index_user_batch, user_batch, attr_input_batch, attr_length_batch, target_batch in eval_data:
 			
 				attr_item_gpu = attr_item_batch.to(self.m_device)
 				attr_tf_item_gpu = attr_tf_item_batch.to(self.m_device)
 				attr_length_item_gpu = attr_length_item_batch.to(self.m_device)
 				attr_index_item_gpu = attr_index_item_batch.to(self.m_device)
 				item_gpu = item_batch.to(self.m_device)
+
+				attr_index_item_iter_debug_gpu = attr_index_item_iter_debug_batch.to(self.m_device)
 
 				attr_user_gpu = attr_user_batch.to(self.m_device)
 				attr_tf_user_gpu = attr_tf_user_batch.to(self.m_device)
@@ -289,19 +289,27 @@ class _TRAINER(object):
 				
 				logits = torch.zeros_like(target_gpu).float()
 
+				# print(attr_input_gpu.masked_select(attr_index_item_iter_debug_gpu.bool()))
 				# print("logits size", logits.type())
 				# exit()
+				# print("=="*10)
+				# print("target_batch", target_batch)
+				# print("attr_input_batch", attr_input_batch)
+
+				# print("attr_item_batch", attr_item_batch)
+
+				# print("attr_user_batch", attr_user_batch)
+				# print("=="*10)
+
 				user_attr_item_logits, attr_item_mask, item_attr_user_logits, attr_user_mask, logits, mask = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, attr_index_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, attr_index_user_gpu, user_gpu, attr_length_gpu, logits)
 
-				# target_batch_gpu = torch.gather(target_batch_gpu, 1, input_batch_gpu)
 				# NLL_loss = self.m_rec_loss(logits, target_gpu, mask)
-				NLL_loss = self.m_rec_loss(logits, target_gpu, attr_item_mask)
-				loss = NLL_loss
-				precision, recall = get_precision_recall(logits.cpu(), target_batch, attr_item_mask.cpu(), k=3)
-
-				# NLL_loss = self.m_rec_loss(user_attr_item_logits, target_gpu, attr_item_mask)
 				# loss = NLL_loss
-				# precision, recall = get_precision_recall(user_attr_item_logits.cpu(), target_batch, k=3)
+				# precision, recall = get_precision_recall(logits.cpu(), target_batch, mask.cpu(), k=3)
+
+				NLL_loss = self.m_rec_loss(logits, target_gpu, mask, attr_index_item_iter_debug_gpu)
+				loss = NLL_loss
+				precision, recall = get_precision_recall(logits.cpu(), target_batch, mask.cpu(), k=3)
 
 				if precision != 0 and recall != 0:
 					loss_list.append(loss.item()) 

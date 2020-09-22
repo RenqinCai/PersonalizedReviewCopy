@@ -71,7 +71,7 @@ class _REC_BPR_LOSS(nn.Module):
         super(_REC_BPR_LOSS, self).__init__()
         self.m_device = device
     
-    def forward(self, preds, targets, mask):
+    def forward(self, preds, targets, mask, debug):
         preds = preds.view(-1, preds.size(1))
         targets = targets.float()
         
@@ -81,6 +81,14 @@ class _REC_BPR_LOSS(nn.Module):
         if torch.isnan(targets).any():
             print("targets", targets)
 
+        # print("preds", preds)
+        # print(preds[preds.nonzero(as_tuple=True)])
+
+        # print(preds.size())
+        # print(debug.size())
+        # preds_debug = preds.masked_select(debug.bool())
+        # print("preds debug", preds_debug)
+        # exit()
         len_mask = ~mask
         len_mask = len_mask.int()
     
@@ -100,7 +108,8 @@ class _REC_BPR_LOSS(nn.Module):
 
             len_delta = len_mask[:, i].unsqueeze(1) & len_mask[:, i+1:]
             pos_mask.append(len_delta)
-            
+        
+
         logits = torch.cat(logits, dim=1)
 
         logit_mask = torch.cat(logit_mask, dim=1)
@@ -108,7 +117,13 @@ class _REC_BPR_LOSS(nn.Module):
         pos_mask = torch.cat(pos_mask, dim=1)
 
         loss = F.logsigmoid(logits*logit_mask)
-    
+        
+        # print(debug.size())
+        # loss_debug = loss*debug
+        
+        # print("loss debug")
+        # print(loss_debug)
+
         valid_mask = logit_mask*pos_mask
         valid_mask = valid_mask**2
         
@@ -120,6 +135,8 @@ class _REC_BPR_LOSS(nn.Module):
         loss = -loss/logit_num
 
         # print("loss", loss.item())
+
+        # exit()
 
         return loss
 

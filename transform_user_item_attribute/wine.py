@@ -84,13 +84,12 @@ class _WINE(Dataset):
             # attr_array_user_item_i = np.array(attr_list_user_item_i)
 
             attr_index_item_i = []
-            for attr_i in attr_list_item_i:
-                attr_index = attr_list_item_i.index(attr_i)
-                attr_index_item_i.append(attr_index)
-
             # for attr_i in attr_list_item_i:
-            #     attr_index = attr_list_user_item_i.index(attr_i)
+            #     attr_index = attr_list_item_i.index(attr_i)
             #     attr_index_item_i.append(attr_index)
+            for attr_i in attr_list_item_i:
+                attr_index = attr_list_user_item_i.index(attr_i)
+                attr_index_item_i.append(attr_index)
             
             attr_index_user_i = []
             for attr_i in attr_list_user_i:
@@ -126,6 +125,8 @@ class _WINE(Dataset):
             self.m_attr_length_item_list.append(len(attr_list_item_i))
             self.m_attr_index_item_list.append(attr_index_item_i)
             self.m_item_batch_list.append(item_id)
+            
+            attrfreq_list_user_i = max_min_scale(attrfreq_list_user_i)
 
             self.m_attr_user_list.append(attr_list_user_i)
             self.m_attr_tf_user_list.append(attrfreq_list_user_i)
@@ -186,6 +187,7 @@ class _WINE(Dataset):
         attr_tf_item_iter = []
         attr_length_item_iter = []
         attr_index_item_iter = []
+        attr_index_item_iter_debug = []
         item_iter = []
 
         attr_user_iter = []
@@ -268,10 +270,11 @@ class _WINE(Dataset):
             
             attr_length_i = sample_i["attr_length_input"]
 
-            # tmp = np.zeros(attr_length_i)
-            # tmp[attr_index_item_i] = 1
-            # tmp = np.pad(tmp, (0, (max_attr_length_iter-attr_length_i)), 'constant')
-            # attr_index_item_iter.append(tmp)
+            tmp = np.zeros(attr_length_i)
+            tmp_ones_index = copy.deepcopy(sample_i["attr_index_item"])
+            tmp[tmp_ones_index] = 1
+            tmp = np.pad(tmp, (0, (max_attr_length_iter-attr_length_i)), 'constant')
+            attr_index_item_iter_debug.append(tmp)
 
             # tmp = np.zeros(attr_length_i)
             # tmp[attr_index_user_i] = 1
@@ -281,7 +284,8 @@ class _WINE(Dataset):
             attr_input_i = copy.deepcopy(sample_i["attr_input"])
             attr_input_i = [int(i) for i in attr_input_i]
             attr_input_i.extend([pad_id]*(max_attr_length_iter-attr_length_i))
-            
+            attr_input_iter.append(attr_input_i)
+
             # target_i.extend([pad_id]*(max_target_length_iter-target_length_i))
             # target_iter.append(target_i)
             target_index_i = copy.deepcopy(sample_i["target"])
@@ -291,8 +295,8 @@ class _WINE(Dataset):
             # print("attr_input_i", attr_input_i)
             # print("target_i", target_i)
 
-            # target_i = target_i[attr_input_i]
-            target_i = target_i[attr_item_i]
+            target_i = target_i[attr_input_i]
+            # target_i = target_i[attr_item_i]
             target_iter.append(target_i)
         # exit()
         # print("input_iter", input_iter)
@@ -301,6 +305,7 @@ class _WINE(Dataset):
         attr_tf_item_iter_tensor = torch.from_numpy(np.array(attr_tf_item_iter)).float()
         attr_length_item_iter_tensor = torch.from_numpy(np.array(attr_length_item_iter)).long()
         attr_index_item_iter_tensor = torch.from_numpy(np.array(attr_index_item_iter)).long()
+        attr_index_item_iter_debug_tensor = torch.from_numpy(np.array(attr_index_item_iter_debug)).long()
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
 
         attr_user_iter_tensor = torch.from_numpy(np.array(attr_user_iter)).long()
@@ -314,7 +319,7 @@ class _WINE(Dataset):
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
 
-        return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, attr_index_item_iter_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, attr_index_user_iter_tensor, user_iter_tensor, attr_input_iter_tensor, attr_length_iter_tensor, target_iter_tensor
+        return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, attr_index_item_iter_tensor, attr_index_item_iter_debug_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, attr_index_user_iter_tensor, user_iter_tensor, attr_input_iter_tensor, attr_length_iter_tensor, target_iter_tensor
 
 def remove_target_zero_row(args):
     data_dir = args.data_dir

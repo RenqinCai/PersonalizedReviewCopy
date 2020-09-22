@@ -97,60 +97,74 @@ class _ATTR_NETWORK(nn.Module):
 
         # """ user """
 
-        # attr_user_x = self.m_attr_embedding(attr_user) 
-        # attr_user_x = attr_user_x.transpose(0, 1)
+        attr_user_x = self.m_attr_embedding(attr_user) 
+        attr_user_x = attr_user_x.transpose(0, 1)
 
-        # attr_user_mask = self.f_generate_mask(attr_lens_user)
+        attr_user_mask = self.f_generate_mask(attr_lens_user)
     
-        # attr_attn_user = self.m_attn(attr_user_x, src_key_padding_mask=attr_user_mask)
-        # attr_attn_user = attr_attn_user.transpose(0, 1)
+        attr_attn_user = self.m_attn(attr_user_x, src_key_padding_mask=attr_user_mask)
+        attr_attn_user = attr_attn_user.transpose(0, 1)
 
-        # attr_user = self.m_attr_linear(attr_attn_user)
+        attr_user = self.m_attr_linear(attr_attn_user)
 
-        # item_x = self.m_item_embedding(item_ids)
-        # item_x = self.m_item_linear(item_x)
-        # item_x = item_x.unsqueeze(2)
+        item_x = self.m_item_embedding(item_ids)
+        item_x = self.m_item_linear(item_x)
+        item_x = item_x.unsqueeze(2)
 
-        # item_attr_user = torch.matmul(attr_user, item_x).squeeze()
+        item_attr_user = torch.matmul(attr_user, item_x).squeeze()
 
-        # # item_attr_user_logits = item_attr_user.unsqueeze(2)
+        # item_attr_user_logits = item_attr_user.unsqueeze(2)
 
-        # attr_user_weight = attr_tf_user.unsqueeze(2)
-        # attr_user_logits = self.m_attr_user_linear(attr_user_weight)
+        attr_user_weight = attr_tf_user.unsqueeze(2)
+        attr_user_logits = self.m_attr_user_linear(attr_user_weight)
 
-        # # item_attr_user_logits = item_attr_user_logits.squeeze(-1)
-        # attr_user_logits = attr_user_logits.squeeze(-1)
-        # item_attr_user_logits = item_attr_user + attr_user_logits
+        # item_attr_user_logits = item_attr_user_logits.squeeze(-1)
+        attr_user_logits = attr_user_logits.squeeze(-1)
+        item_attr_user_logits = item_attr_user + attr_user_logits
 
         batch_size = attr_item.size(0)
-        len_i = attr_index_item.size(1)
-
+        
         tmp_logits = torch.zeros_like(logits)
         tmp_logits.requires_grad = False
 
         # print("=="*15)
         # print(logits.requires_grad)
         # print(tmp_logits.requires_grad)
-
-        # print(user_attr_item_logits.size())
-        # print(user_attr_item_logits)
-        # print(len_i)
-        # print(attr_index_item.size())
-        # print(attr_index_item)
+        len_i = attr_index_item.size(1)
         for i in range(len_i):
             # print("--"*10, i)
         # for i, val in enumerate(attr_index_item):
             val = attr_index_item[:, i]
-
             tmp_logits[torch.arange(batch_size), val] = tmp_logits[torch.arange(batch_size), val] + user_attr_item_logits[:, i]*(~attr_item_mask[:, i])
 
-            # print("tmp_logits 2")
-            # print(tmp_logits)
-        # len_j = attr_index_user.size(1)
-        # for j in range(len_j):
+            # print("user_attr_item_logits")
+            # print()
+            # print(user_attr_item_logits[:, i])
+            # print("attr_item_mask")
+            # print()
+            # print(~attr_item_mask[:, i])
             
-        #     val = attr_index_user[:, j]
-        #     tmp_logits[torch.arange(batch_size), val] = tmp_logits[torch.arange(batch_size), val] + item_attr_user_logits[:, j]*attr_user_mask[:, j]
+            # print("xx"*10)
+            # print("tmp logits")
+            # print(tmp_logits[torch.arange(batch_size), val])
+
+        # print("xx"*15)
+        # print(logits.requires_grad)
+        # print(tmp_logits.requires_grad)
+
+        gamma = 1.0
+        len_j = attr_index_user.size(1)
+        for j in range(len_j):
+            # print("--"*10, j, "--"*10)
+            val = attr_index_user[:, j]
+            # print("val", val)
+            tmp_logits[torch.arange(batch_size), val] = tmp_logits[torch.arange(batch_size), val] + gamma*item_attr_user_logits[:, j]*(~attr_user_mask[:, j])
+        
+            # print("tmp logits")
+            # print(tmp_logits[torch.arange(batch_size), val])
+
+            # print("item_attr_user_logits")
+            # print(item_attr_user_logits[:, j]*(~attr_user_mask[:, j]))
 
         # print("xx"*15)
         # print(logits.requires_grad)
@@ -167,11 +181,31 @@ class _ATTR_NETWORK(nn.Module):
         # logits.scatter_(1, attr_index_item, user_attr_item_logits)
         # logits.scatter_(1, attr_index_user, item_attr_user_logits)
         # exit()
-        # if torch.all(torch.eq(user_attr_item_logits, logits)):
-            # print("not equal")
+        # if torch.all(torch.eq(logits.gather(1, attr_index_item), user_attr_item_logits*(~attr_item_mask))):
+        #     print("equal")
+        # else:
+        #     print(logits.gather(1, attr_index_item))
+        #     print(user_attr_item_logits*(~attr_item_mask))
         # debug = torch.eq(user_attr_item_logits, logits)
         # print(debug)
         # print(~attr_item_mask)
+
+        # print("--"*20)
+        # print("user_attr_item_logits")
+        # print(user_attr_item_logits*(~attr_item_mask))
+
+        # print("attr_index_item")
+        # print(attr_index_item)
+
+        # print("attr_index_user")
+        # print(attr_index_user)
+        
+        # print("++"*20)
+        # print("logits")
+        # print(logits)
+
+        # print("mask")
+        # print(~mask)
 
         # exit()
         return user_attr_item_logits, attr_item_mask, None, None, logits, mask
