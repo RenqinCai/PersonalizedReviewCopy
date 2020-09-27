@@ -36,9 +36,7 @@ def main(args):
     set_seed(seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print('device', device, torch.cuda.current_device())
-
-    # exit()
+    print('device', device)
 
     data_obj = _DATA()
     if "yelp" in args.data_name:
@@ -141,11 +139,10 @@ if __name__ == "__main__":
     parser.add_argument('--item_boa_file', type=str, default='item_boa.json')
     parser.add_argument('--user_boa_file', type=str, default='user_boa.json')
     parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="two_tower_user_item_attribute")
+    parser.add_argument('--model_name', type=str, default="tower_user_attribute")
     parser.add_argument('--model_path', type=str, default="../checkpoint/")
 
     ### model
-    parser.add_argument('--gamma', type=float, default=0.2)
     parser.add_argument('--attr_emb_size', type=int, default=300)
     parser.add_argument('--user_emb_size', type=int, default=300)
     parser.add_argument('--item_emb_size', type=int, default=300)

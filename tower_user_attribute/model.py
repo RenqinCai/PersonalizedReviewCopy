@@ -36,7 +36,7 @@ class _ATTR_NETWORK(nn.Module):
         self.m_item_linear = nn.Linear(self.m_item_embed_size, self.m_output_hidden_size)
         self.m_attr_linear = nn.Linear(self.m_attr_embed_size, self.m_output_hidden_size)
 
-        self.m_gamma = args.gamma
+        # self.m_lambda = 0.28
         # self.m_user_output = nn.Linear(1, 1)
         self.m_attr_item_linear = nn.Linear(1, 1)
         self.m_attr_user_linear = nn.Linear(1, 1)
@@ -57,55 +57,7 @@ class _ATTR_NETWORK(nn.Module):
         return mask
 
     def forward(self, attr_item, attr_tf_item, attr_lens_item, item_ids, attr_user, attr_tf_user, attr_lens_user, user_ids):
-        # print("==="*10)
 
-        """ item """
-
-        attr_item_x = self.m_attr_embedding(attr_item)
-        attr_item_x = attr_item_x.transpose(0, 1)
-        # print("attr_item_x", attr_item_x.size())
-        # print(attr_item_x)
-
-        attr_item_mask = self.f_generate_mask(attr_lens_item)
-        # print("attr_item_mask", attr_item_mask.size())
-        # print(attr_item_mask)
-
-        attr_attn_item = self.m_attn(attr_item_x, src_key_padding_mask = attr_item_mask)
-        attr_attn_item = attr_attn_item.transpose(0, 1)
-
-        ### attr_attn_item: batch_size*attr_len_item*(head_num*attr_embed)
-        ### attr_item: batch_size*attr_len_item*output_size
-        attr_item = self.m_attr_linear(attr_attn_item)
-
-        ### user_x: batch_size*user_embed
-        user_x = self.m_user_embedding(user_ids)
-
-        ### user_x: batch_size*output_size
-        user_x = self.m_user_linear(user_x)
-        user_x = user_x.unsqueeze(2)
-        
-        ### user_attr_item: batch_size*attr_len_item
-        user_attr_item = torch.matmul(attr_item, user_x).squeeze()
-       
-        attr_item_weight = attr_tf_item.unsqueeze(2)
-        attr_item_logits = self.m_attr_item_linear(attr_item_weight)
-
-        ### attr_item_logits: batch_size*attr_len_item
-        attr_item_logits = attr_item_logits.squeeze(-1)
-        user_attr_item_logits = user_attr_item + attr_item_logits
-
-        ### attr_item_logits: batch_size*attr_len_item
-        user_attr_item_logits = user_attr_item_logits.unsqueeze(-1)
-
-         ### weighted_user_attr_item_logits: batch_size*attr_len_item*ouput_size
-        weighted_user_attr_item_logits = user_attr_item_logits*attr_item
-        
-        weighted_attr_item_mask = attr_item_mask.unsqueeze(-1).expand(weighted_user_attr_item_logits.size())
-        weighted_attr_item_mask = weighted_attr_item_mask
-
-        weighted_user_attr_item_logits.data.masked_fill_(weighted_attr_item_mask.data, -float('inf'))
-        user_attr_item_output = torch.max(weighted_user_attr_item_logits, 1)[0]
-        
         # """ user """
 
         attr_user_x = self.m_attr_embedding(attr_user) 
@@ -143,9 +95,8 @@ class _ATTR_NETWORK(nn.Module):
         weighted_item_attr_user_logits.data.masked_fill_(weighted_attr_user_mask.data, -float('inf'))
         item_attr_user_output = torch.max(weighted_item_attr_user_logits, 1)[0]
 
-        gamma = self.m_gamma
-        output = (1-gamma)*user_attr_item_output + gamma*item_attr_user_output
-        # output = user_attr_item_output + gamma*item_attr_user_output
+        gamma = 0.2
+        output = item_attr_user_output
 
         output = self.m_output_linear(output)
 
