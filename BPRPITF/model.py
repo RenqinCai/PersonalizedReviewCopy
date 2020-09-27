@@ -34,7 +34,6 @@ class _ATTR_NETWORK(nn.Module):
         torch.nn.init.normal_(self.m_user_embedding.weight, 0.0, 0.01)
         torch.nn.init.normal_(self.m_item_embedding.weight, 0.0, 0.01)
 
-
     def forward(self, pos_tag_input, neg_tag_input, user_ids, item_ids):
 
         ### pos_user_tag_x: batch_size*embedding_size

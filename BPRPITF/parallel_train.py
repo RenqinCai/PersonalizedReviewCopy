@@ -50,11 +50,6 @@ class _TRAINER(object):
         self.m_overfit_epoch_threshold = 3
 
     def f_save_model(self, checkpoint):
-        # checkpoint = {'model':network.state_dict(),
-        #     'epoch': epoch,
-        #     'en_optimizer': en_optimizer,
-        #     'de_optimizer': de_optimizer
-        # }
         torch.save(checkpoint, self.m_model_file)
 
     def f_train(self, train_data, eval_data, network, optimizer, logger_obj, local_rank):
@@ -76,19 +71,6 @@ class _TRAINER(object):
 
                 print("validation epoch duration", e_time-s_time)
 
-                if last_eval_loss == 0:
-                    last_eval_loss = self.m_mean_eval_loss
-
-                elif last_eval_loss < self.m_mean_eval_loss:
-                    print("!"*10, "error val loss increase", "!"*10, "last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
-                    
-                    overfit_indicator += 1
-
-                    # if overfit_indicator > self.m_overfit_epoch_threshold:
-                    # 	break
-                else:
-                    print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
-                    last_eval_loss = self.m_mean_eval_loss
 
                 print("--"*10, epoch, "--"*10)
 
@@ -109,60 +91,45 @@ class _TRAINER(object):
                     print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
                     last_train_loss = self.m_mean_train_loss
 
-                if local_rank is not None:
-                    if local_rank == 0:
-                        if best_eval_precision < self.m_mean_eval_precision:
-                            checkpoint = {'model':network.module.state_dict()}
-                            self.f_save_model(checkpoint)
-                            best_eval_precision = self.m_mean_eval_precision
-                else:
+            
+                if local_rank == 0:
                     if best_eval_precision < self.m_mean_eval_precision:
-                            checkpoint = {'model':network.state_dict()}
-                            self.f_save_model(checkpoint)
-                            best_eval_precision = self.m_mean_eval_precision
+                        checkpoint = {'model':network.module.state_dict()}
+                        self.f_save_model(checkpoint)
+                        best_eval_precision = self.m_mean_eval_precision
+        
 
         except KeyboardInterrupt:
             print("--"*20)
             print("... exiting from training early")
-            if local_rank is not None:
-                if local_rank == 0:
-                    if best_eval_precision < self.m_mean_eval_precision:
-                        print("... final save ...")
-                        checkpoint = {'model':network.module.state_dict()}
-                        self.f_save_model(checkpoint)
-                        best_eval_precision = self.m_mean_eval_precision
-                exit()
-            else:
+            
+            if local_rank == 0:
                 if best_eval_precision < self.m_mean_eval_precision:
-                        print("... final save ...")
-                        checkpoint = {'model':network.state_dict()}
-                        self.f_save_model(checkpoint)
-                        best_eval_precision = self.m_mean_eval_precision
+                    print("... final save ...")
+                    checkpoint = {'model':network.module.state_dict()}
+                    self.f_save_model(checkpoint)
+                    best_eval_precision = self.m_mean_eval_precision
+            exit()
+        
             
     def f_get_pred(self, network, user_ids, item_ids, local_rank):
-        if local_rank is not None:
-            ### user_x = batch_size*embed_size
-            user_x = network.module.m_user_embedding(user_ids)
-
-            ### item_x = batch_size*embed_size
-            item_x = network.module.m_item_embedding(item_ids)
-
-            ### m_tag_user_embedding: tag_num*embed_size
-            ### user_logits: batch_size*tag_num
-            user_logits = torch.matmul(user_x, network.module.m_tag_user_embedding.weight.data.transpose(0, 1))
-            # user_logits = network.m_tag_user_embedding.weight.data*user_x
-
-            ### m_tag_item_embedding: tag_num*embed_size
-            ### item_logits: batch_size*tag_num
-            item_logits = torch.matmul(item_x, network.module.m_tag_item_embedding.weight.data.transpose(0, 1))
-            # item_logits = network.m_tag_item_embedding.weight.data*item_x
-
-        else:
-            user_x = network.m_user_embedding(user_ids)
-            item_x = network.m_item_embedding(item_ids)
-            user_logits = torch.matmul(user_x, network.m_tag_user_embedding.weight.data.transpose(0, 1))
-            item_logits = torch.matmul(item_x, network.m_tag_item_embedding.weight.data.transpose(0, 1))
         
+        ### user_x = batch_size*embed_size
+        user_x = network.module.m_user_embedding(user_ids)
+
+        ### item_x = batch_size*embed_size
+        item_x = network.module.m_item_embedding(item_ids)
+
+        ### m_tag_user_embedding: tag_num*embed_size
+        ### user_logits: batch_size*tag_num
+        user_logits = torch.matmul(user_x, network.module.m_tag_user_embedding.weight.data.transpose(0, 1))
+        # user_logits = network.m_tag_user_embedding.weight.data*user_x
+
+        ### m_tag_item_embedding: tag_num*embed_size
+        ### item_logits: batch_size*tag_num
+        item_logits = torch.matmul(item_x, network.module.m_tag_item_embedding.weight.data.transpose(0, 1))
+        # item_logits = network.m_tag_item_embedding.weight.data*item_x
+
         ### pred_logits: batch_size*tag_num
         pred_logits = user_logits+item_logits
 
@@ -235,21 +202,15 @@ class _TRAINER(object):
             
             iteration += 1
             if iteration % self.m_print_interval == 0:
-                logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(iteration, np.mean(tmp_loss_list), np.mean(tmp_precision_list), np.mean(tmp_recall_list)))
+                logger_obj.f_add_output2IO("%d, NLL_loss:%.4f"%(iteration, np.mean(tmp_loss_list)))
 
                 tmp_loss_list = []
-                tmp_precision_list = []
-                tmp_recall_list = []
-                            
-        logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(self.m_train_iteration, np.mean(loss_list), np.mean(precision_list), np.mean(recall_list)))
-        logger_obj.f_add_scalar2tensorboard("train/loss", np.mean(loss_list), self.m_train_iteration)
-        logger_obj.f_add_scalar2tensorboard("train/precision", np.mean(precision_list), self.m_train_iteration)
-        logger_obj.f_add_scalar2tensorboard("train/recall", np.mean(recall_list), self.m_train_iteration)
-
+                           
+        logger_obj.f_add_output2IO("%d, NLL_loss:%.4f"%(self.m_train_iteration, np.mean(loss_list)))
+        # logger_obj.f_add_scalar2tensorboard("train/loss", np.mean(loss_list), self.m_train_iteration)
+    
         self.m_mean_train_loss = np.mean(loss_list)
-        self.m_mean_train_precision = np.mean(precision_list)
-        self.m_mean_train_recall = np.mean(recall_list)
-
+    
     def f_eval_epoch(self, eval_data, network, optimizer, logger_obj, local_rank):
         loss_list = []
         precision_list = []
@@ -264,39 +225,22 @@ class _TRAINER(object):
         with torch.no_grad():
             for pos_tag_batch, mask_batch, user_batch, item_batch in eval_data:
 
-                # eval_flag = random.randint(1,5)
-                # if eval_flag != 2:
-                # 	continue
-
-
                 user_batch_gpu = user_batch.to(self.m_device)
                 item_batch_gpu = item_batch.to(self.m_device)
-
-                # pos_tag_batch_gpu = pos_tag_batch.to(self.m_device)
-
-                # logits = network(pos_tag_batch_gpu, , user_batch_gpu, item_batch_gpu)
-
-                # NLL_loss = self.m_rec_loss(logits)
-                
-                # loss = NLL_loss
-                loss = 0.0
 
                 preds = self.f_get_pred(network, user_batch_gpu, item_batch_gpu, local_rank)
                 precision, recall = get_precision_recall(preds.cpu(), pos_tag_batch, mask_batch, k=3)
 
                 if precision != 0 and recall != 0:
                     # loss_list.append(loss.item()) 
-                    loss_list.append(loss)
                     precision_list.append(precision)
                     recall_list.append(recall)
 
-            logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(self.m_eval_iteration, np.mean(loss_list), np.mean(precision_list), np.mean(recall_list)))
+            logger_obj.f_add_output2IO("%d, precision:%.4f, recall:%.4f"%(self.m_eval_iteration, np.mean(precision_list), np.mean(recall_list)))
 
-            logger_obj.f_add_scalar2tensorboard("eval/loss", np.mean(loss_list), self.m_eval_iteration)
-            logger_obj.f_add_scalar2tensorboard("eval/precision", np.mean(precision_list), self.m_eval_iteration)
-            logger_obj.f_add_scalar2tensorboard("eval/recall", np.mean(recall_list), self.m_eval_iteration)
+            # logger_obj.f_add_scalar2tensorboard("eval/precision", np.mean(precision_list), self.m_eval_iteration)
+            # logger_obj.f_add_scalar2tensorboard("eval/recall", np.mean(recall_list), self.m_eval_iteration)
                 
-        self.m_mean_eval_loss = np.mean(loss_list)
         self.m_mean_eval_precision = np.mean(precision_list)
         self.m_mean_eval_recall = np.mean(recall_list)
         network.train()

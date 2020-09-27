@@ -19,6 +19,6 @@ class _BPR_LOSS(nn.Module):
         # print("loss 1", loss)
         loss = torch.log(loss)
         # print("loss 2", loss)
-        loss = -torch.mean(loss)
+        loss = -torch.sum(loss)
 
         return loss

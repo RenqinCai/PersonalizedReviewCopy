@@ -17,6 +17,8 @@ class _OPTIM:
             self.m_optimizer = optim.Adam(params, lr=lr, weight_decay=weight_decay)
         elif optimizer_type == "SGD":
             self.m_optimizer = optim.SGD(params, lr=lr, weight_decay=weight_decay)
+        elif optimizer_type == "AdamW":
+            self.m_optimizer = optim.AdamW(params, lr=lr, weight_decay=weight_decay)
         else:
             raise NotImplementedError
 

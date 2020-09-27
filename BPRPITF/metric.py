@@ -7,7 +7,6 @@ import numpy as np
 from collections import Counter 
 import bottleneck as bn
 
-
 def get_precision_recall(preds, targets, mask, k=1):
 
     ### preds: batch_size*tag_num

@@ -7,14 +7,14 @@ import torch.cuda
 
 import pickle
 import argparse
-from data import _DATA
+from parallel_data import _DATA
 import json
 import os
 from optimizer import _OPTIM
 from logger import _LOGGER
 # import matplotlib.pyplot as plt
 import time
-from train import _TRAINER
+from parallel_train import _TRAINER
 from model import _ATTR_NETWORK
 from eval import _EVAL
 # from infer_attn import _INFER
@@ -44,10 +44,16 @@ def main(args):
 
     data_obj = _DATA()
 
+    if "beer" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
+
     if "yelp" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_yelp(args)
     
     if "movie" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
+
+    if "lthing" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
 
     if args.train:

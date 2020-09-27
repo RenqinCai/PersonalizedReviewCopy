@@ -44,10 +44,19 @@ def main(args):
 
     data_obj = _DATA()
 
+    if "beer" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_yelp(args)
+
+    if "wine" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_yelp(args)
+
     if "yelp" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_yelp(args)
     
     if "movie" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
+
+    if "lthing" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
 
     if args.train:

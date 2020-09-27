@@ -80,9 +80,9 @@ class _DATA():
     def f_load_data_yelp(self, args):
         self.m_data_name = args.data_name
 
-        train_data_file = args.data_dir+"/sampled_train_100.pickle"
-        valid_data_file = args.data_dir+"/sampled_valid.pickle"
-        test_data_file = args.data_dir+"/sampled_test.pickle"
+        train_data_file = args.data_dir+"/train_100.pickle"
+        valid_data_file = args.data_dir+"/valid.pickle"
+        test_data_file = args.data_dir+"/test.pickle"
         # train_data_file = args.data_dir+"/train_100.pickle"
         # valid_data_file = args.data_dir+"/valid.pickle"
         # test_data_file = args.data_dir+"/valid.pickle"

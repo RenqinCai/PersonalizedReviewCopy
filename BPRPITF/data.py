@@ -67,22 +67,26 @@ class _DATA():
         valid_data = _MOVIE_TEST(args, valid_df)
 
         batch_size = args.batch_size
- 
-        train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, num_workers=8, collate_fn=train_data.collate)
 
-        test_loader = DataLoader(dataset=valid_data, batch_size=batch_size, shuffle=False, num_workers=4, collate_fn=valid_data.collate)
+        if args.parallel:
+            train_sampler = DistributedSampler(dataset=train_data)
+            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, sampler=train_sampler, num_workers=1, collate_fn=train_data.collate)
+        else:
+            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, num_workers=8, collate_fn=train_data.collate)
+
+        test_loader = DataLoader(dataset=valid_data, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=valid_data.collate)
 
         return train_loader, test_loader, vocab_obj
 
     def f_load_data_yelp(self, args):
         self.m_data_name = args.data_name
 
-        train_data_file = args.data_dir+"/sampled_train_100.pickle"
-        valid_data_file = args.data_dir+"/sampled_valid.pickle"
-        test_data_file = args.data_dir+"/sampled_test.pickle"
-        # train_data_file = args.data_dir+"/train_100.pickle"
-        # valid_data_file = args.data_dir+"/valid.pickle"
-        # test_data_file = args.data_dir+"/valid.pickle"
+        # train_data_file = args.data_dir+"/sampled_train_100.pickle"
+        # valid_data_file = args.data_dir+"/sampled_valid.pickle"
+        # test_data_file = args.data_dir+"/sampled_valid.pickle"
+        train_data_file = args.data_dir+"/train_100.pickle"
+        valid_data_file = args.data_dir+"/valid.pickle"
+        test_data_file = args.data_dir+"/valid.pickle"
 
         # train_data_file = args.data_dir+"/self_attn_train_100.pickle"
         # valid_data_file = args.data_dir+"/self_attn_valid.pickle"

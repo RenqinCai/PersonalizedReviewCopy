@@ -16,11 +16,10 @@ class _LOGGER():
 		output_file = myhost+"_"+file_time+str(data_name)
 
 		# print("output_file", output_file)
-	
+		
 		output_dir = "../log/"+args.data_name+"_"+args.model_name+"/"
 		print("output_dir", output_dir)
-		if args.hcdmg1:
-			output_dir = "../log_hcdmg1/"+args.data_name+"_"+args.model_name+"/"
+
 		if not os.path.exists(output_dir):
 			os.mkdir(output_dir)
 
@@ -28,12 +27,10 @@ class _LOGGER():
 		print("output_file", output_file)
 		self.m_io_writer = open(output_file, "w")
 
-		tensor_file_name = myhost+"_"+file_time
-		print("tensor_file_name", tensor_file_name)
-		if args.hcdmg1:
-			# self.m_tensor_writer = SummaryWriter("../tensorboard_hcdmg1/"+args.model_name)
-			self.m_tensor_writer = SummaryWriter("../tensorboard_hcdmg1/"+args.model_name+"/"+tensor_file_name)
-		else:
+		if not args.parallel:
+			tensor_file_name = myhost+"_"+file_time
+			print("tensor_file_name", tensor_file_name)
+		
 			# self.m_tensor_writer = SummaryWriter("../tensorboard/"+args.model_name)
 			self.m_tensor_writer = SummaryWriter("../tensorboard/"+args.model_name+"/"+tensor_file_name)
 
