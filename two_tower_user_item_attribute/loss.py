@@ -66,9 +66,6 @@ class _REC_BOW_LOSS(nn.Module):
 
         return rec_loss
 
-
-
-
 class _REC_BPR_LOSS(nn.Module):
     def __init__(self, device):
         super(_REC_BPR_LOSS, self).__init__()
@@ -77,19 +74,6 @@ class _REC_BPR_LOSS(nn.Module):
     def forward(self, preds, targets, mask):
         preds = preds.view(-1, preds.size(1))
         targets = targets.float()
-        
-        if torch.isnan(preds).any():
-            print("preds", preds)
-
-        if torch.isnan(targets).any():
-            print("targets", targets)
-
-        if torch.isinf(-preds).any():
-            print("preds inf", preds)
-
-        # print("preds", preds)
-        # print("xxx mask", mask)
-        # print("xxx targets", targets)
 
         len_mask = mask
         len_mask = len_mask.int()

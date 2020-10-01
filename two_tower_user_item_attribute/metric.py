@@ -61,7 +61,7 @@ def get_recall(preds, targets, k=10):
 
     return recall
 
-def get_precision_recall(preds, targets, mask, k=1):
+def get_precision_recall_train(preds, targets, mask, k=1):
     max_preds, _ = torch.max(preds, dim=1, keepdim=True)
     exp_preds = torch.exp(preds-max_preds)
     # mask = ~mask
@@ -88,3 +88,29 @@ def get_precision_recall(preds, targets, mask, k=1):
     precision = torch.mean(precision)
 
     return precision, recall
+
+def get_precision_recall(preds, targets, mask, k=1):
+    preds = preds.view(-1, preds.size(1))
+    _, indices = torch.topk(preds, k, -1)
+
+    precision_list = []
+    recall_list = []
+
+    for i, pred_index in enumerate(indices):
+        pred_i = list(pred_index.numpy())
+        target_i = list(targets[i].numpy())
+        true_pos = set(target_i) & set(pred_i)
+        true_pos_num = len(true_pos)
+
+        precision = true_pos_num/k
+        recall = true_pos_num/(sum(mask[i]).item())
+
+        precision_list.append(precision)
+        recall_list.append(recall)
+
+    avg_precision = np.mean(precision_list)
+    avg_recall = np.mean(recall_list)
+
+    # print(avg_precision, avg_recall)
+
+    return avg_precision, avg_recall

@@ -258,9 +258,9 @@ class _DATA():
         if args.parallel:
             train_sampler = DistributedSampler(dataset=train_data)
 
-            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, sampler=train_sampler, num_workers=8, collate_fn=train_data.collate)
+            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, sampler=train_sampler, num_workers=4, collate_fn=train_data.collate)
         else:
-            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, num_workers=8, collate_fn=train_data.collate)
+            train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=train_data.collate)
         test_loader = DataLoader(dataset=valid_data, batch_size=batch_size, shuffle=False, num_workers=4, collate_fn=valid_data.collate)
 
         return train_loader, test_loader, vocab_obj   

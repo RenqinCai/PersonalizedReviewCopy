@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS
-from metric import get_precision_recall
+from metric import get_precision_recall, get_precision_recall_train
 from model import _ATTR_NETWORK
 from infer_new import _INFER
 import random
@@ -203,7 +203,7 @@ class _TRAINER(object):
 
 			NLL_loss = self.m_rec_loss(logits, targets, mask)
 			loss = NLL_loss
-			precision, recall = get_precision_recall(logits.cpu(), targets.cpu(), mask.cpu(), k=3)
+			precision, recall = get_precision_recall_train(logits.cpu(), targets.cpu(), mask.cpu(), k=3)
 
 			# NLL_loss = self.m_rec_loss(user_attr_item_logits, target_gpu, attr_item_mask)
 			# loss = NLL_loss
@@ -256,7 +256,7 @@ class _TRAINER(object):
 
 		network.eval()
 		with torch.no_grad():
-			for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, user_batch, pos_target_batch, pos_length_batch, neg_target_batch, neg_length_batch in eval_data:			
+			for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, user_batch, target_batch, target_mask_batch in eval_data:			
 				attr_item_gpu = attr_item_batch.to(self.m_device)
 				attr_tf_item_gpu = attr_tf_item_batch.to(self.m_device)
 				attr_length_item_gpu = attr_length_item_batch.to(self.m_device)
@@ -267,32 +267,30 @@ class _TRAINER(object):
 				attr_length_user_gpu = attr_length_user_batch.to(self.m_device)
 				user_gpu = user_batch.to(self.m_device)
 
-				pos_target_gpu = pos_target_batch.to(self.m_device)
-				pos_length_gpu = pos_length_batch.to(self.m_device)
-
-				neg_target_gpu = neg_target_batch.to(self.m_device)
-				neg_length_gpu = neg_length_batch.to(self.m_device)
-
 				output = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu)
 
-				logits, mask, targets = network.f_pred_forward(output, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
+				logits = network.f_eval_forward(output)
 
-				NLL_loss = self.m_rec_loss(logits, targets, mask)
-				loss = NLL_loss
-				precision, recall = get_precision_recall(logits.cpu(), targets.cpu(), mask.cpu(), k=3)
+				# logits, mask, targets = network.f_pred_forward(output, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
+
+				# NLL_loss = self.m_rec_loss(logits, targets, mask)
+				# loss = NLL_loss
+				precision, recall = get_precision_recall(logits.cpu(), target_batch, target_mask_batch, k=3)
 
 				if precision != 0 and recall != 0:
-					loss_list.append(loss.item()) 
+					# loss_list.append(loss.item()) 
 					precision_list.append(precision)
 					recall_list.append(recall)
 
-			logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(self.m_eval_iteration, np.mean(loss_list), np.mean(precision_list), np.mean(recall_list)))
+			# logger_obj.f_add_output2IO("%d, NLL_loss:%.4f, precision:%.4f, recall:%.4f"%(self.m_eval_iteration, np.mean(loss_list), np.mean(precision_list), np.mean(recall_list)))
+			logger_obj.f_add_output2IO("%d, precision:%.4f, recall:%.4f"%(self.m_eval_iteration, np.mean(precision_list), np.mean(recall_list)))
 
-			logger_obj.f_add_scalar2tensorboard("eval/loss", np.mean(loss_list), self.m_eval_iteration)
+			# logger_obj.f_add_scalar2tensorboard("eval/loss", np.mean(loss_list), self.m_eval_iteration)
 			logger_obj.f_add_scalar2tensorboard("eval/precision", np.mean(precision_list), self.m_eval_iteration)
 			logger_obj.f_add_scalar2tensorboard("eval/recall", np.mean(recall_list), self.m_eval_iteration)
-				
-		self.m_mean_eval_loss = np.mean(loss_list)
+
+		self.m_mean_eval_loss = 0.0	
+		# self.m_mean_eval_loss = np.mean(loss_list)
 		self.m_mean_eval_precision = np.mean(precision_list)
 		self.m_mean_eval_recall = np.mean(recall_list)
 		network.train()
