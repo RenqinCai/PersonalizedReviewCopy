@@ -15,6 +15,8 @@ class _BPR_LOSS(nn.Module):
     def forward(self, logits):
         ### logits: batch_size
 
+        # print("logits", logits)
+
         loss = torch.sigmoid(logits)
         # print("loss 1", loss)
         loss = torch.log(loss)

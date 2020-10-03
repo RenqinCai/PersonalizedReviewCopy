@@ -47,6 +47,9 @@ def main(args):
     if "beer" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
 
+    if "wine" in args.data_name:
+        train_data, valid_data, vocab_obj = data_obj.f_load_data_movie(args)
+
     if "yelp" in args.data_name:
         train_data, valid_data, vocab_obj = data_obj.f_load_data_yelp(args)
     

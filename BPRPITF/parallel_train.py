@@ -75,7 +75,7 @@ class _TRAINER(object):
                 print("--"*10, epoch, "--"*10)
 
                 s_time = datetime.datetime.now()
-                # train_data.sampler.set_epoch(epoch)
+                train_data.sampler.set_epoch(epoch)
                 self.f_train_epoch(train_data, network, optimizer, logger_obj)
                 e_time = datetime.datetime.now()
 

@@ -19,9 +19,6 @@ def get_precision_recall(preds, targets, mask, k=1):
     precisoin_list = []
     recall_list = []
 
-    pop_correct_num = 0
-    non_pop_correct_num = 0
-
     for i, pred_index in enumerate(indices):
         pred_i = list(pred_index.numpy())
         target_i = list(targets[i].numpy())

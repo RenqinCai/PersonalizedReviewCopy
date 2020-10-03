@@ -36,9 +36,11 @@ class _ATTR_NETWORK(nn.Module):
 
     def forward(self, pos_tag_input, neg_tag_input, user_ids, item_ids):
 
+        """pos"""
         ### pos_user_tag_x: batch_size*embedding_size
         pos_user_tag_x = self.m_tag_user_embedding(pos_tag_input)
         
+        """user"""
         ### user_x: batch_size*embedding_size
         user_x = self.m_user_embedding(user_ids)
 
@@ -49,7 +51,9 @@ class _ATTR_NETWORK(nn.Module):
         
         ### pos_item_tag_x: batch_size*embedding_size
         pos_item_tag_x = self.m_tag_item_embedding(pos_tag_input)
+        # pos_item_tag_x = self.m_tag_user_embedding(pos_tag_input)
 
+        """item"""
         ### item_x: batch_size*embedding_size
         item_x = self.m_item_embedding(item_ids)
 
@@ -59,10 +63,13 @@ class _ATTR_NETWORK(nn.Module):
         pos_item_tag_score = torch.sum(pos_item_tag_score, dim=1)
 
         pos_tag_score = pos_user_tag_score + pos_item_tag_score
-    
+
+        """neg"""
+
         ### pos_user_tag_x: batch_size*embedding_size
         neg_user_tag_x = self.m_tag_user_embedding(neg_tag_input)
         
+        """user"""
         ### batch_size*1
         # neg_user_tag_score = torch.matmul(neg_user_tag_x, user_x) 
         neg_user_tag_score = neg_user_tag_x*user_x
@@ -70,8 +77,9 @@ class _ATTR_NETWORK(nn.Module):
         
         ### pos_item_tag_x: batch_size*embedding_size
         neg_item_tag_x = self.m_tag_item_embedding(neg_tag_input)
+        # neg_item_tag_x = self.m_tag_user_embedding(neg_tag_input)
 
-        ### 
+        """item"""
         # neg_item_tag_score = torch.matmul(neg_item_tag_x, item_x) 
         neg_item_tag_score = neg_item_tag_x*item_x
         neg_item_tag_score = torch.sum(neg_item_tag_score, dim=1)
