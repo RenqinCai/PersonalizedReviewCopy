@@ -218,7 +218,7 @@ class _DATA():
         # valid_data_file = args.data_dir+"/new_valid.pickle"
         # test_data_file = args.data_dir+"/new_valid.pickle"
 
-        train_data_file = args.data_dir+"/train.pickle"
+        train_data_file = args.data_dir+"/train_debug.pickle"
         valid_data_file = args.data_dir+"/valid.pickle"
         test_data_file = args.data_dir+"/valid.pickle"
         

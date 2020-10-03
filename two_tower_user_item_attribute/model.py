@@ -44,8 +44,8 @@ class _ATTR_NETWORK(nn.Module):
         self.m_attr_item_linear = nn.Linear(1, 1)
         self.m_attr_user_linear = nn.Linear(1, 1)
 
-        self.m_tanh = nn.Tanh()
-        self.m_output_linear = nn.Linear(self.m_attr_embed_size, self.m_attr_embed_size)
+        # self.m_tanh = nn.Tanh()
+        # self.m_output_linear = nn.Linear(self.m_attr_embed_size, self.m_attr_embed_size)
 
         # self.m_user_attr_embedding = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
         # self.m_item_attr_embedding = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
@@ -53,6 +53,19 @@ class _ATTR_NETWORK(nn.Module):
         # self.m_output_attr_embedding = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
 
         self = self.to(self.m_device)
+
+    def f_init_weight(self):
+        # torch.nn.init.normal_(self.m_output_attr_embedding.weight, 0.0, 0.01)
+        # torch.nn.init.normal_(self.m_tag_item_embedding.weight, 0.0, 0.01)
+        
+        torch.nn.init.normal_(self.m_user_embedding.weight, 0.0, 0.01)
+        torch.nn.init.normal_(self.m_item_embedding.weight, 0.0, 0.01)
+        torch.nn.init.normal_(self.m_attr_embedding.weight, 0.0, 0.01)
+
+        torch.nn.init.normal_(self.m_user_linear.weight, 0.0, 0.01)
+        torch.nn.init.normal_(self.m_item_linear.weight, 0.0, 0.01)
+        torch.nn.init.normal_(self.m_attr_linear.weight, 0.0, 0.01)
+
 
     def f_generate_mask(self, length):
         max_len = length.max().item()
@@ -161,12 +174,12 @@ class _ATTR_NETWORK(nn.Module):
         gamma = self.m_gamma
         output = (1-gamma)*user_output + gamma*item_output
 
-        output = self.m_tanh(output)
+        # output = self.m_tanh(output)
         # gamma = self.m_gamma
         # output = (1-gamma)*user_attr_item_output + gamma*item_attr_user_output
         # output = user_attr_item_output + gamma*item_attr_user_output
 
-        output = self.m_output_linear(output)
+        # output = self.m_output_linear(output)
 
         return output
     

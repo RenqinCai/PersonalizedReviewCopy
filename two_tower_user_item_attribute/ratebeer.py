@@ -61,6 +61,10 @@ class _RATEBEER(Dataset):
         itemid_list = df.itemid.tolist()
         # review_list = df.review.tolist()
         # tokens_list = df.token_idxs.tolist()
+        
+        # pos_attr_list = df.pos_tagid.tolist()
+        # neg_attr_list = df.neg_tagid.tolist()
+
         pos_attr_list = df.pos_attr.tolist()
         neg_attr_list = df.neg_attr.tolist()
 
@@ -69,10 +73,18 @@ class _RATEBEER(Dataset):
         max_neg_len_threshold = 10000
 
         for sample_index in range(self.m_sample_num):
+
+            if sample_index %100000 == 0:
+                print("sample_index", sample_index)
+
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
-            pos_attrlist_i = list(pos_attr_list[sample_index])
+
+            pos_attrlist_i = [int(pos_attr_list[sample_index])]
             neg_attrlist_i = list(neg_attr_list[sample_index])
+            neg_attrlist_i = [int(j) for j in neg_attrlist_i]
+            # pos_attrlist_i = list(pos_attr_list[sample_index])
+            # neg_attrlist_i = list(neg_attr_list[sample_index])
 
             attrdict_item_i = boa_item_dict[str(item_id)]              
             attrlist_item_i = list(attrdict_item_i.keys())
@@ -250,7 +262,6 @@ class _RATEBEER(Dataset):
             neg_target_i = copy.deepcopy(sample_i["neg_target"])
             neg_len_i = sample_i["neg_len"]
             neg_target_i.extend([pad_id]*(max_neg_targetlen_iter-neg_len_i))
-
             neg_target_iter.append(neg_target_i)
 
         attr_item_iter_tensor = torch.from_numpy(np.array(attr_item_iter)).long()
