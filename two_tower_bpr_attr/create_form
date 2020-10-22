@@ -1,0 +1,44 @@
+function createForm() {  
+      // create & name Form  
+   var item = "Beer Attribute Recognition 3";  
+   var form = FormApp.create(item)  
+       .setTitle(item)
+   .setLimitOneResponsePerUser(true)
+   .setDescription("If you do not have knowledge of beer, please do not answer this form. Thanks a lot!\
+                   Determine whether a word/phrase is an attribute describing the property of a beer,  for example: cinnamon, ginger & cider. Any kind of beer is possible. \n \
+If this word is describing the property of a beer, please choose \"yes \"; otherwise please choose \"no \".");
+//   
+  
+   var item = form.addTextItem();
+   item.setTitle("Worker ID").setRequired(true);
+   
+   var qnum_page = 50
+  
+   var spreadsheetId = '1iU_tuVJrb_e0AlBH8lHIO_rRX7oShgToXxS8DUvoJ7A';
+  var rangeName = 'test_3!A2:A502';
+   var values = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName).values;
+   if (!values) {
+     Logger.log('No data found.');
+   } else {
+     Logger.log('Attribute');
+     for (var row = 0; row < values.length; row++) {
+       // Print columns A and E, which correspond to indices 0 and 4.
+       if (row%qnum_page == 0){ 
+         if (row > 1){
+           form.addPageBreakItem()
+           }
+       }
+       form.addMultipleChoiceItem()
+        .setTitle('word: '+values[row][0])
+        .setChoiceValues(['yes, this word is a beer attribute','no'])
+        .setRequired(true);
+     }
+   }
+  
+  var d = new Date();
+  var n = d.getTime(); 
+  var c = Math.random();
+  var id = c + n;
+  form.setConfirmationMessage('Thanks for your effort! Your completetion code: '+String(parseInt(id)));
+  Logger.log('id'+String(parseInt(id)));
+} 
