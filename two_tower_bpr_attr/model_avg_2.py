@@ -1,3 +1,7 @@
+"""
+average over attribute to represent user and item
+"""
+
 import torch
 from torch import log, unsqueeze
 import torch.nn as nn
@@ -35,26 +39,24 @@ class _ATTR_NETWORK(nn.Module):
 
         self.m_gamma = args.gamma
 
-        self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
-        self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
+        self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+        self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
 
         # self.m_attr_linear_user = nn.Linear(self.m_attr_embed_size, )
         # self.m_attr_linear_item = nn.Linear()
 
-        # self.m_exp_user = nn.Linear(1, 1)
-        # self.m_log_user = nn.Linear(1, 1)
-        # self.m_linear_user = nn.Linear(1, 1)
+        self.m_exp_user = nn.Linear(1, 1)
+        self.m_log_user = nn.Linear(1, 1)
+        self.m_linear_user = nn.Linear(1, 1)
         
-        # self.m_exp_item = nn.Linear(1, 1)
-        # self.m_log_item = nn.Linear(1, 1)
-        # self.m_linear_item = nn.Linear(1, 1)
+        self.m_exp_item = nn.Linear(1, 1)
+        self.m_log_item = nn.Linear(1, 1)
+        self.m_linear_item = nn.Linear(1, 1)
 
-        # self.m_attr_user = nn.Linear(self.m_attr_embed_size, 4)
-        # self.m_attr_item = nn.Linear(self.m_attr_embed_size, 4)
+        self.m_attr_user = nn.Linear(self.m_attr_embed_size, 4)
+        self.m_attr_item = nn.Linear(self.m_attr_embed_size, 4)
 
-        # self.m_bias_tf = nn.Linear(1, 1, bias=False)
-
-        self.m_beta = 0.01
+        self.m_bias_tf = nn.Linear(1, 1, bias=False)
 
         self.f_init_weight()
 
@@ -65,21 +67,21 @@ class _ATTR_NETWORK(nn.Module):
         torch.nn.init.uniform_(self.m_output_attr_embedding_user.weight, -initrange, initrange)
         torch.nn.init.uniform_(self.m_output_attr_embedding_item.weight, -initrange, initrange)
 
-        # torch.nn.init.uniform_(self.m_attr_embedding.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_attr_embedding.weight, -initrange, initrange)
         # torch.nn.init.normal_(self.m_tag_item_embedding.weight, 0.0, 0.01)
         torch.nn.init.uniform_(self.m_user_embedding.weight, -initrange, initrange)
         torch.nn.init.uniform_(self.m_item_embedding.weight, -initrange, initrange)
 
-        # torch.nn.init.uniform_(self.m_exp_user.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_log_user.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_linear_user.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_attr_user.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_bias_tf.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_exp_user.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_log_user.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_linear_user.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_attr_user.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_bias_tf.weight, -initrange, initrange)
 
-        # torch.nn.init.uniform_(self.m_exp_item.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_log_item.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_linear_item.weight, -initrange, initrange)
-        # torch.nn.init.uniform_(self.m_attr_item.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_exp_item.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_log_item.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_linear_item.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_attr_item.weight, -initrange, initrange)
 
     def f_generate_mask(self, length):
         max_len = length.max().item()
@@ -92,8 +94,8 @@ class _ATTR_NETWORK(nn.Module):
 
     def f_get_avg_attr_user(self, attr, attr_lens):
         ### attr_user_embed: batch_size*seq_len*embed_size
-
-        attr_user_embed = self.m_attr_embedding(attr)
+        attr_user_embed = self.m_attr_embedding(attr) 
+        # attr_user_embed = attr_user_embed.transpose(0, 1)
 
         attr_user_mask = self.f_generate_mask(attr_lens)
 
@@ -104,8 +106,10 @@ class _ATTR_NETWORK(nn.Module):
         return attr_user, attr_user_mask
 
     def f_get_avg_attr_item(self, attr, attr_lens):
-        
         attr_item_embed = self.m_attr_embedding(attr)
+        
+        # print("attr", attr)
+        # print("attr_lens", attr_lens)
 
         attr_item_mask = self.f_generate_mask(attr_lens)
 
@@ -128,21 +132,18 @@ class _ATTR_NETWORK(nn.Module):
 
         attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
        
-        item_x = attr_attn_item
+        user_attr_item_output = attr_attn_item
         
         # """ user """
 
         attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
         
-        user_x = attr_attn_user
+        item_attr_user_output = attr_attn_user
 
         ### user_x: batch_size*user_embed
         user_embed = self.m_user_embedding(user_ids)
 
         item_embed = self.m_item_embedding(item_ids)
-
-        # item_attr_user_output = torch.zeros_like(user_embed)
-        # user_attr_item_output = torch.zeros_like(item_embed)
 
         # user_output = user_embed
         # item_output = item_embed
@@ -150,20 +151,8 @@ class _ATTR_NETWORK(nn.Module):
         # user_output = item_attr_user_output
         # item_output = user_attr_item_output
 
-        user_output = user_embed
-        item_output = item_embed
-        
-        ### user_embed: batch_size*embed_size
-        user_loss = torch.sum(torch.pow(user_embed-user_x, 2), dim=-1)
-        item_loss = torch.sum(torch.pow(item_embed-item_x, 2), dim=-1)
-
-        norm_loss = user_loss + item_loss
-        norm_loss = self.m_beta*torch.mean(norm_loss)
-        # user_output = torch.cat([user_embed, scalar_weight*user_x], dim=-1)
-        # item_output = torch.cat([item_embed, scalar_weight*item_x], dim=-1)
-
-        # user_output = (1-self.m_gamma)*user_embed + self.m_gamma*item_attr_user_output
-        # item_output = (1-self.m_gamma)*item_embed + self.m_gamma*user_attr_item_output
+        user_output = (1-self.m_gamma)*user_embed + self.m_gamma*item_attr_user_output
+        item_output = (1-self.m_gamma)*item_embed + self.m_gamma*user_attr_item_output
         
         neg_embed_user = self.m_output_attr_embedding_user(neg_targets)
         neg_embed_item = self.m_output_attr_embedding_item(neg_targets)
@@ -208,44 +197,35 @@ class _ATTR_NETWORK(nn.Module):
 
         new_targets = new_targets*mask
 
-        return logits, mask, new_targets, norm_loss
+        return logits, mask, new_targets
 
     def f_eval_forward(self, attr_item, attr_tf_item, attr_lens_item, item_ids, attr_user, attr_tf_user, attr_lens_user, user_ids):
 
         """ item """
         attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
 
-        item_x = attr_attn_item
+        ### user_x: batch_size*user_embed
+        user_embed = self.m_user_embedding(user_ids)
+
+        user_attr_item_output = attr_attn_item
+
         
         """ user """
         attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
-        
-        user_x = attr_attn_user
 
-        scalar_weight = 1
-        # print(item_attr_user_output.size())
+        item_embed = self.m_item_embedding(item_ids)
+        
+        item_attr_user_output = attr_attn_user
+        
         # user_output = user_embed
         # item_output = item_embed
         
-        ### user_x: batch_size*user_embed
-        user_embed = self.m_user_embedding(user_ids)
-        item_embed = self.m_item_embedding(item_ids)
-
-        # print("user_attr_item_output", user_attr_item_output)
-        # print("item_embed", item_embed)
-
-        # item_attr_user_output = torch.zeros_like(user_embed)
-        # user_attr_item_output = torch.zeros_like(item_embed)
-
-        # user_output = torch.cat([user_embed, scalar_weight*user_x], dim=-1)
-        # item_output = torch.cat([item_embed, scalar_weight*item_x], dim=-1)
-
-        user_output = user_embed
-        item_output = item_embed
+        user_output = (1-self.m_gamma)*user_embed + self.m_gamma*item_attr_user_output
+        item_output = (1-self.m_gamma)*item_embed + self.m_gamma*user_attr_item_output
 
         logits_user = torch.matmul(user_output, self.m_output_attr_embedding_user.weight.t())
         logits_item = torch.matmul(item_output, self.m_output_attr_embedding_item.weight.t())
 
         logits = logits_user+logits_item
-        # exit()
+        
         return logits

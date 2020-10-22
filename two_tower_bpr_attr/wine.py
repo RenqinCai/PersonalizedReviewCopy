@@ -32,10 +32,12 @@ class _WINE(Dataset):
         print("sample num", self.m_sample_num)
 
         self.m_batch_num = int(self.m_sample_num/self.m_batch_size)
-        print("batch num", self.m_batch_num)
+        
 
         if (self.m_sample_num/self.m_batch_size - self.m_batch_num) > 0:
             self.m_batch_num += 1
+
+        print("batch num", self.m_batch_num)
 
         ###get length
         
@@ -446,6 +448,9 @@ class _WINE_TEST(Dataset):
         target_len_iter = []
         target_mask_iter = []
 
+        # attr_item_user_iter = []
+        # attr_length_item_user_iter = []
+
         for i in range(batch_size):
             sample_i = batch[i]
             
@@ -458,8 +463,24 @@ class _WINE_TEST(Dataset):
             target_len_i = sample_i["target_len"]
             target_len_iter.append(target_len_i)
 
+            attr_item_i = copy.deepcopy(sample_i["attr_item"])
+            attr_user_i = copy.deepcopy(sample_i["attr_user"])
+
+            attr_item_i = [int(i) for i in attr_item_i]
+            attr_user_i = [int(i) for i in attr_user_i]
+
+            attr_item_iter.append(attr_item_i)
+            attr_user_iter.append(attr_user_i)
+
+            # attr_item_user_i = set(attr_item_i).union(set(attr_user_i))
+            # attr_item_user_i = list(attr_item_user_i)
+
+            # attr_item_user_iter.append(attr_item_user_i)
+            # attr_length_item_user_iter.append(len(attr_item_user_i))
+
         max_attr_length_item_iter = max(attr_length_item_iter)
         max_attr_length_user_iter = max(attr_length_user_iter)
+        # max_attr_length_item_user_iter = max(attr_length_item_user_iter)
 
         max_targetlen_iter = max(target_len_iter)
 
@@ -470,14 +491,27 @@ class _WINE_TEST(Dataset):
         for i in range(batch_size):
             sample_i = batch[i]
 
-            attr_item_i = copy.deepcopy(sample_i["attr_item"])
-            attr_item_i = [int(i) for i in attr_item_i]
+            # attr_item_i = copy.deepcopy(sample_i["attr_item"])
+            # attr_user_i = copy.deepcopy(sample_i["attr_user"])
 
+            # attr_item_i = [int(i) for i in attr_item_i]
+            # attr_user_i = [int(i) for i in attr_user_i]
+
+            # attr_item_user = set(attr_item_i).union(set(attr_user_i))
+            # attr_item_user = list(attr_item_user)
+
+            attr_item_i = attr_item_iter[i]
+            attr_user_i = attr_user_iter[i]
+            # attr_item_user_i = attr_item_user_iter[i]
+            # attr_length_item_user_i = attr_length_item_user_iter[i]
+
+            # attr_item_user_i.extend([pad_id]*(max_attr_length_item_user_iter-attr_length_item_user_i))
+            
             attr_tf_item_i = copy.deepcopy(sample_i['attr_tf_item'])
             attr_length_item_i = sample_i["attr_length_item"]
             
             attr_item_i.extend([pad_id]*(max_attr_length_item_iter-attr_length_item_i))
-            attr_item_iter.append(attr_item_i)
+            # attr_item_iter.append(attr_item_i)
 
             attr_tf_item_i.extend([freq_pad_id]*(max_attr_length_item_iter-attr_length_item_i))
             attr_tf_item_iter.append(attr_tf_item_i)
@@ -485,14 +519,11 @@ class _WINE_TEST(Dataset):
             item_i = sample_i["item"]
             item_iter.append(item_i)
 
-            attr_user_i = copy.deepcopy(sample_i["attr_user"])
-            attr_user_i = [int(i) for i in attr_user_i]
-
             attr_tf_user_i = copy.deepcopy(sample_i['attr_tf_user'])
             attr_length_user_i = sample_i["attr_length_user"]
 
             attr_user_i.extend([pad_id]*(max_attr_length_user_iter-attr_length_user_i))
-            attr_user_iter.append(attr_user_i)
+            # attr_user_iter.append(attr_user_i)
 
             attr_tf_user_i.extend([freq_pad_id]*(max_attr_length_user_iter-attr_length_user_i))
             attr_tf_user_iter.append(attr_tf_user_i)
@@ -520,6 +551,8 @@ class _WINE_TEST(Dataset):
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
         target_mask_iter_tensor = torch.from_numpy(np.array(target_mask_iter)).long()
+
+        # samples_tensor = torch.from_numpy(np.array(attr_item_user_iter)).long()
 
         return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, user_iter_tensor, target_iter_tensor, target_mask_iter_tensor
 

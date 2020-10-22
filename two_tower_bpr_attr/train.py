@@ -104,6 +104,12 @@ class _TRAINER(object):
                     print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
                     last_eval_loss = self.m_mean_eval_loss
 
+                if best_eval_F1 < self.m_mean_eval_F1:
+                    checkpoint = {'model':network.state_dict()}
+                    print("... save model ...")
+                    self.f_save_model(checkpoint)
+                    best_eval_F1 = self.m_mean_eval_F1
+
                 print("--"*10, epoch, "--"*10)
 
                 s_time = datetime.datetime.now()
@@ -122,17 +128,12 @@ class _TRAINER(object):
                 else:
                     print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
                     last_train_loss = self.m_mean_train_loss
-
-                if best_eval_F1 < self.m_mean_eval_F1:
-                    checkpoint = {'model':network.state_dict()}
-                    print("... save model ...")
-                    self.f_save_model(checkpoint)
-                    best_eval_F1 = self.m_mean_eval_F1
-
+                
         except KeyboardInterrupt:
             print("--"*20)
             print("... exiting from training early") 
             if best_eval_F1 < self.m_mean_eval_F1:
+                print("... saving model ...")
                 checkpoint = {'model':network.state_dict()}
                 self.f_save_model(checkpoint)
                 best_eval_F1 = self.m_mean_eval_F1
@@ -171,10 +172,10 @@ class _TRAINER(object):
             neg_target_gpu = neg_target_batch.to(self.m_device)
             neg_length_gpu = neg_length_batch.to(self.m_device)
 
-            logits, mask, targets = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
+            logits, mask, targets, norm_loss = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
 
             NLL_loss = self.m_rec_loss(logits, targets, mask)
-            loss = NLL_loss
+            loss = NLL_loss+norm_loss
 
             precision = 1.0
             recall = 1.0
@@ -240,16 +241,11 @@ class _TRAINER(object):
 
                 logits = network.f_eval_forward(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu)
                 
-
-                # NLL_loss = self.m_rec_loss(logits, targets, mask)
-                # loss = NLL_loss
                 precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=3)
-
-                if precision != 0 and recall != 0:
-                    # loss_list.append(loss.item()) 
-                    precision_list.append(precision)
-                    recall_list.append(recall)
-                    F1_list.append(F1)
+                
+                precision_list.append(precision)
+                recall_list.append(recall)
+                F1_list.append(F1)
 
             logger_obj.f_add_output2IO("%d, precision:%.4f, recall:%.4f, F1:%.4f"%(self.m_eval_iteration, np.mean(precision_list), np.mean(recall_list), np.mean(F1_list)))
 

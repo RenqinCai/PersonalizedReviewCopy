@@ -116,8 +116,53 @@ def get_precision_recall(preds, targets, mask, k=1):
     return avg_precision, avg_recall
 
 def get_precision_recall_F1(preds, targets, mask, k=1):
+
     preds = preds.view(-1, preds.size(1))
     _, indices = torch.topk(preds, k, -1)
+
+    precision_list = []
+    recall_list = []
+    F1_list = []
+
+    for i, pred_index in enumerate(indices):
+        pred_i = list(pred_index.numpy())
+        target_i = list(targets[i].numpy())
+        true_pos = set(target_i) & set(pred_i)
+        true_pos_num = len(true_pos)
+
+        precision = true_pos_num/k
+        recall = true_pos_num/(sum(mask[i]).item())
+
+        precision_list.append(precision)
+        recall_list.append(recall)
+
+        F1 = 2*precision*recall/(precision+recall+1e-26)
+        F1_list.append(F1)
+
+    avg_precision = np.mean(precision_list)
+    avg_recall = np.mean(recall_list)
+    avg_F1 = np.mean(F1_list)
+
+    # print(avg_precision, avg_recall)
+
+    return avg_precision, avg_recall, avg_F1
+
+def get_precision_recall_F1_sample(preds, targets, samples, mask, k=1):
+    # print("preds size", preds.size())
+    # print("preds", preds)
+
+    # print("targets", targets.size())
+    # print("targets", targets)
+
+    # print("samples", samples.size())
+    # print("samples", samples)
+
+    sampled_preds = preds.gather(1, samples)
+
+    sampled_preds = sampled_preds.view(-1, sampled_preds.size(1))
+    _, sampled_indices = torch.topk(sampled_preds, k, -1)
+
+    indices = samples.gather(1, sampled_indices)
 
     precision_list = []
     recall_list = []
