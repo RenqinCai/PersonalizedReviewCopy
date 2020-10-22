@@ -69,6 +69,9 @@ class _RATEBEER(Dataset):
 
         max_neg_len_threshold = 10000
 
+        # max_attr_len = 20
+        max_attr_len = args.max_seq_length
+
         for sample_index in range(self.m_sample_num):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
@@ -84,12 +87,17 @@ class _RATEBEER(Dataset):
             attrdict_item_i = boa_item_dict[str(item_id)]              
             attrlist_item_i = list(attrdict_item_i.keys())
             attrlist_item_i = [int(i) for i in attrlist_item_i]
+            attrlist_item_i = attrlist_item_i[:max_attr_len]
+
             attrfreq_list_item_i = list(attrdict_item_i.values())
+            attrfreq_list_item_i = attrfreq_list_item_i[:max_attr_len]
 
             attrdict_user_i = boa_user_dict[str(user_id)]
             attrlist_user_i = list(attrdict_user_i.keys())
             attrlist_user_i = [int(i) for i in attrlist_user_i]
+            attrlist_user_i = attrlist_user_i[:max_attr_len]
             attrfreq_list_user_i = list(attrdict_user_i.values())
+            attrfreq_list_user_i = attrfreq_list_user_i[:max_attr_len]
 
             """
             scale the item freq into the range [0, 1]
@@ -279,12 +287,6 @@ class _RATEBEER(Dataset):
         neg_target_iter_tensor = torch.from_numpy(np.array(neg_target_iter)).long()
         neg_len_iter_tensor = torch.from_numpy(np.array(neg_len_iter)).long()
 
-        # print("neg_len_iter_tensor", neg_len_iter_tensor)
-
-        # return item_iter_tensor, user_iter_tensor, pos_target_iter_tensor,  neg_target_iter_tensor
-
-        # return None, None, None, item_iter_tensor, None, None, None, user_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
-
         return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, user_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
 
 class _RATEBEER_TEST(Dataset):
@@ -333,12 +335,12 @@ class _RATEBEER_TEST(Dataset):
         
         userid_list = df.userid.tolist()
         itemid_list = df.itemid.tolist()
-        # review_list = df.review.tolist()
-        # tokens_list = df.token_idxs.tolist()
+        
         attr_list = df.attr.tolist()
 
-        # print("boa_user_dict", boa_user_dict)
-        max_neg_len_threshold = 10000
+        # max_attr_len = 20
+        # max_attr_len = 100
+        max_attr_len = args.max_seq_length
         
         for sample_index in range(self.m_sample_num):
             user_id = userid_list[sample_index]
@@ -349,12 +351,16 @@ class _RATEBEER_TEST(Dataset):
             attrdict_item_i = boa_item_dict[str(item_id)]              
             attrlist_item_i = list(attrdict_item_i.keys())
             attrlist_item_i = [int(i) for i in attrlist_item_i]
+            attrlist_item_i = attrlist_item_i[:max_attr_len]
             attrfreq_list_item_i = list(attrdict_item_i.values())
+            attrfreq_list_item_i = attrfreq_list_item_i[:max_attr_len]
 
             attrdict_user_i = boa_user_dict[str(user_id)]
             attrlist_user_i = list(attrdict_user_i.keys())
             attrlist_user_i = [int(i) for i in attrlist_user_i]
+            attrlist_user_i = attrlist_user_i[:max_attr_len]
             attrfreq_list_user_i = list(attrdict_user_i.values())
+            attrfreq_list_user_i = attrfreq_list_user_i[:max_attr_len]
 
             # """
             # scale the item freq into the range [0, 1]
@@ -420,8 +426,6 @@ class _RATEBEER_TEST(Dataset):
 
         sample_i = {"attr_item": attr_item_i, "attr_tf_item": attr_tf_item_i, "attr_length_item": attr_length_item_i, "item": item_i, "attr_user": attr_user_i, "attr_tf_user": attr_tf_user_i, "attr_length_user": attr_length_user_i, "user": user_i,  "target": target_i, "target_len": target_len_i}
 
-        # sample_i = {"item": item_i,  "user": user_i,  "target": target_i, "target_len": target_len_i}
-
         return sample_i
     
     @staticmethod
@@ -442,6 +446,9 @@ class _RATEBEER_TEST(Dataset):
         target_len_iter = []
         target_mask_iter = []
 
+        # attr_item_user_iter = []
+        # attr_length_item_user_iter = []
+
         for i in range(batch_size):
             sample_i = batch[i]
             
@@ -454,8 +461,24 @@ class _RATEBEER_TEST(Dataset):
             target_len_i = sample_i["target_len"]
             target_len_iter.append(target_len_i)
 
+            attr_item_i = copy.deepcopy(sample_i["attr_item"])
+            attr_user_i = copy.deepcopy(sample_i["attr_user"])
+
+            attr_item_i = [int(i) for i in attr_item_i]
+            attr_user_i = [int(i) for i in attr_user_i]
+
+            attr_item_iter.append(attr_item_i)
+            attr_user_iter.append(attr_user_i)
+
+            # attr_item_user_i = set(attr_item_i).union(set(attr_user_i))
+            # attr_item_user_i = list(attr_item_user_i)
+
+            # attr_item_user_iter.append(attr_item_user_i)
+            # attr_length_item_user_iter.append(len(attr_item_user_i))
+
         max_attr_length_item_iter = max(attr_length_item_iter)
         max_attr_length_user_iter = max(attr_length_user_iter)
+        # max_attr_length_item_user_iter = max(attr_length_item_user_iter)
 
         max_targetlen_iter = max(target_len_iter)
 
@@ -466,14 +489,28 @@ class _RATEBEER_TEST(Dataset):
         for i in range(batch_size):
             sample_i = batch[i]
 
-            attr_item_i = copy.deepcopy(sample_i["attr_item"])
-            attr_item_i = [int(i) for i in attr_item_i]
+            # attr_item_i = copy.deepcopy(sample_i["attr_item"])
+            # attr_user_i = copy.deepcopy(sample_i["attr_user"])
 
+            # attr_item_i = [int(i) for i in attr_item_i]
+            # attr_user_i = [int(i) for i in attr_user_i]
+
+            # attr_item_user = set(attr_item_i).union(set(attr_user_i))
+            # attr_item_user = list(attr_item_user)
+
+            attr_item_i = attr_item_iter[i]
+            attr_user_i = attr_user_iter[i]
+
+            # attr_item_user_i = attr_item_user_iter[i]
+            # attr_length_item_user_i = attr_length_item_user_iter[i]
+
+            # attr_item_user_i.extend([pad_id]*(max_attr_length_item_user_iter-attr_length_item_user_i))
+            
             attr_tf_item_i = copy.deepcopy(sample_i['attr_tf_item'])
             attr_length_item_i = sample_i["attr_length_item"]
             
             attr_item_i.extend([pad_id]*(max_attr_length_item_iter-attr_length_item_i))
-            attr_item_iter.append(attr_item_i)
+            # attr_item_iter.append(attr_item_i)
 
             attr_tf_item_i.extend([freq_pad_id]*(max_attr_length_item_iter-attr_length_item_i))
             attr_tf_item_iter.append(attr_tf_item_i)
@@ -481,14 +518,11 @@ class _RATEBEER_TEST(Dataset):
             item_i = sample_i["item"]
             item_iter.append(item_i)
 
-            attr_user_i = copy.deepcopy(sample_i["attr_user"])
-            attr_user_i = [int(i) for i in attr_user_i]
-
             attr_tf_user_i = copy.deepcopy(sample_i['attr_tf_user'])
             attr_length_user_i = sample_i["attr_length_user"]
 
             attr_user_i.extend([pad_id]*(max_attr_length_user_iter-attr_length_user_i))
-            attr_user_iter.append(attr_user_i)
+            # attr_user_iter.append(attr_user_i)
 
             attr_tf_user_i.extend([freq_pad_id]*(max_attr_length_user_iter-attr_length_user_i))
             attr_tf_user_iter.append(attr_tf_user_i)
@@ -516,8 +550,6 @@ class _RATEBEER_TEST(Dataset):
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
         target_mask_iter_tensor = torch.from_numpy(np.array(target_mask_iter)).long()
-
-        # return None, None, None, item_iter_tensor, None, None, None, user_iter_tensor, target_iter_tensor, target_mask_iter_tensor
 
         return attr_item_iter_tensor, attr_tf_item_iter_tensor, attr_length_item_iter_tensor, item_iter_tensor, attr_user_iter_tensor, attr_tf_user_iter_tensor, attr_length_user_iter_tensor, user_iter_tensor, target_iter_tensor, target_mask_iter_tensor
 
@@ -600,7 +632,7 @@ def remove_target_zero_row(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default="../data/ratebeer_attr_oov")
+    parser.add_argument('--data_dir', type=str, default="../data/movie_attr_oov")
     parser.add_argument('--item_boa_file', type=str, default="item_attr.json")
 
     args = parser.parse_args()

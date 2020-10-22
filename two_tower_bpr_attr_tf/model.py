@@ -1,4 +1,6 @@
-import enum
+"""
+
+"""
 import torch
 from torch import log
 import torch.nn as nn
@@ -36,12 +38,9 @@ class _ATTR_NETWORK(nn.Module):
 
         self.m_gamma = args.gamma
 
-        self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
-        self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
-
-        # self.m_attr_linear_user = nn.Linear(self.m_attr_embed_size, )
-        # self.m_attr_linear_item = nn.Linear()
-
+        self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
+        self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
+        
         self.m_attr_tf_user = nn.Linear(1, 1)
         self.m_attr_tf_item = nn.Linear(1, 1)
         
@@ -99,6 +98,7 @@ class _ATTR_NETWORK(nn.Module):
         attr_user_logits = self.f_get_tf_weight_user(attr, attr_tf)
 
         masked_attr_user_embed = attr_user_logits*attr_user_embed*((~attr_user_mask).unsqueeze(-1))
+        # masked_attr_user_embed = attr_user_embed*((~attr_user_mask).unsqueeze(-1))
 
         attr_user = masked_attr_user_embed.sum(1)/((~attr_user_mask).sum(1).unsqueeze(-1))
 
@@ -113,6 +113,7 @@ class _ATTR_NETWORK(nn.Module):
         attr_item_logits = self.f_get_tf_weight_item(attr, attr_tf)
 
         masked_attr_item_embed = attr_item_logits*attr_item_embed*((~attr_item_mask).unsqueeze(-1))
+        # masked_attr_item_embed = attr_item_embed*((~attr_item_mask).unsqueeze(-1))
 
         attr_item = masked_attr_item_embed.sum(1)/((~attr_item_mask).sum(1).unsqueeze(-1))
 
@@ -143,8 +144,8 @@ class _ATTR_NETWORK(nn.Module):
         # user_output = user_embed
         # item_output = item_embed
 
-        user_output = attr_attn_user
-        item_output = attr_attn_item
+        user_output = torch.cat([user_embed, attr_attn_user], dim=-1)
+        item_output = torch.cat([item_embed, attr_attn_item], dim=-1)
 
         # user_output = user_embed+item_attr_user_output*self.m_gamma
         # item_output = item_embed+user_attr_item_output*self.m_gamma
@@ -223,8 +224,8 @@ class _ATTR_NETWORK(nn.Module):
         # user_output = user_embed
         # item_output = item_embed
         
-        user_output = attr_attn_user
-        item_output = attr_attn_item
+        user_output = torch.cat([user_embed, attr_attn_user], dim=-1)
+        item_output = torch.cat([item_embed, attr_attn_item], dim=-1)
 
         logits_user = torch.matmul(user_output, self.m_output_attr_embedding_user.weight.t())
         logits_item = torch.matmul(item_output, self.m_output_attr_embedding_item.weight.t())

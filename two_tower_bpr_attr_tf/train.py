@@ -37,9 +37,6 @@ class _TRAINER(object):
         
         self.m_epochs = args.epoch_num
         self.m_batch_size = args.batch_size
-
-        # self.m_x0 = args.x0
-        # self.m_k = args.k
         
         # self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
@@ -58,11 +55,6 @@ class _TRAINER(object):
         self.m_overfit_epoch_threshold = 3
 
     def f_save_model(self, checkpoint):
-        # checkpoint = {'model':network.state_dict(),
-        #     'epoch': epoch,
-        #     'en_optimizer': en_optimizer,
-        #     'de_optimizer': de_optimizer
-        # }
         torch.save(checkpoint, self.m_model_file)
 
     def f_init_word_embed(self, pretrain_word_embed, network):
@@ -77,7 +69,7 @@ class _TRAINER(object):
 
         best_eval_precision = 0
         best_eval_F1 = 0
-        # self.f_init_word_embed(pretrain_word_embed, network)
+
         try: 
             for epoch in range(self.m_epochs):
                 
@@ -103,6 +95,12 @@ class _TRAINER(object):
                     print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
                     last_eval_loss = self.m_mean_eval_loss
 
+                if best_eval_F1 < self.m_mean_eval_F1:
+                    checkpoint = {'model':network.state_dict()}
+                    print("... save model ...")
+                    self.f_save_model(checkpoint)
+                    best_eval_F1 = self.m_mean_eval_F1
+
                 print("--"*10, epoch, "--"*10)
 
                 s_time = datetime.datetime.now()
@@ -117,21 +115,15 @@ class _TRAINER(object):
 
                 elif last_train_loss < self.m_mean_train_loss:
                     print("!"*10, "error training loss increase", "!"*10, "last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
-                    # break
                 else:
                     print("last train loss %.4f"%last_train_loss, "cur train loss %.4f"%self.m_mean_train_loss)
-                    last_train_loss = self.m_mean_train_loss
-
-                if best_eval_F1 < self.m_mean_eval_F1:
-                    checkpoint = {'model':network.state_dict()}
-                    print("... save model ...")
-                    self.f_save_model(checkpoint)
-                    best_eval_F1 = self.m_mean_eval_F1
+                    last_train_loss = self.m_mean_train_loss 
 
         except KeyboardInterrupt:
             print("--"*20)
             print("... exiting from training early") 
             if best_eval_F1 < self.m_mean_eval_F1:
+                print("... saving model ...")
                 checkpoint = {'model':network.state_dict()}
                 self.f_save_model(checkpoint)
                 best_eval_F1 = self.m_mean_eval_F1
