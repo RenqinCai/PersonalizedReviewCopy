@@ -200,6 +200,7 @@ class _DATA():
         print("vocab size", vocab_obj.m_vocab_size)
 
         train_data = _WINE(args, vocab_obj, train_df, item_boa_dict, user_boa_dict)
+        # train_data = _WINE_TEST(args, vocab_obj, train_df, item_boa_dict, user_boa_dict)
         valid_data = _WINE_TEST(args, vocab_obj, valid_df, item_boa_dict, user_boa_dict)
 
         batch_size = args.batch_size

@@ -69,14 +69,14 @@ class _TRAINER(object):
         network.m_user_embedding.weight.data.copy_(pretrain_network.m_user_embedding.weight.data)
         network.m_item_embedding.weight.data.copy_(pretrain_network.m_item_embedding.weight.data)
 
-        print("embed size", pretrain_network.m_output_attr_embedding.weight.data[:, :network.m_attr_embed_size].size())
-        print("embed size", network.m_output_attr_embedding.weight.data[:, :network.m_attr_embed_size].size())
+        network.m_output_attr_embedding_user.weight.data.copy_(pretrain_network.m_output_attr_embedding_user.weight.data)
 
-        network.m_output_attr_embedding.weight.data[:, :network.m_attr_embed_size].copy_(pretrain_network.m_output_attr_embedding.weight.data[:, :network.m_attr_embed_size])
+        network.m_output_attr_embedding_item.weight.data.copy_(pretrain_network.m_output_attr_embedding_item.weight.data)
 
-        network.m_output_attr_embedding.weight.data[:, network.m_attr_embed_size*2:].copy_(pretrain_network.m_output_attr_embedding.weight.data[:, network.m_attr_embed_size:])
-
-        # network.m_attr_embedding.weight.requires_grad = False
+        network.m_user_embedding.weight.requires_grad = False
+        network.m_item_embedding.weight.requires_grad = False
+        network.m_output_attr_embedding_user.weight.requires_grad = False
+        network.m_output_attr_embedding_item.weight.requires_grad = False
 
     def f_train(self, pretrain_network, train_data, eval_data, network, optimizer, logger_obj):
         last_train_loss = 0
@@ -87,7 +87,7 @@ class _TRAINER(object):
         best_eval_precision = 0
         best_eval_F1 = 0
 
-        # self.f_init_model(pretrain_network, network)
+        self.f_init_model(pretrain_network, network)
 
         try: 
             for epoch in range(self.m_epochs):

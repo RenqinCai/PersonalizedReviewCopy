@@ -20,7 +20,7 @@ from train import _TRAINER
 # from model import _ATTR_NETWORK
 # from model_mix import _ATTR_NETWORK
 from bpr import BPR
-from model_mix_1 import _ATTR_NETWORK
+from model_avg import _ATTR_NETWORK
 from eval_attn import _EVAL
 from infer_attn import _INFER
 # from eval_pop import _EVAL
@@ -77,13 +77,13 @@ def main(args):
     print("user num", vocab_obj.user_num)
     print("item num", vocab_obj.item_num)
 
-    # pretrain_network = BPR(vocab_obj, args, device)
-    # pretrain_model_abs_file = os.path.join(args.model_path, args.pretrain_model_file)
-    # print("pretrain_model_abs_file", pretrain_model_abs_file)
-    # checkpoint = torch.load(pretrain_model_abs_file)
-    # pretrain_network.load_state_dict(checkpoint['model'])
+    pretrain_network = BPR(vocab_obj, args, device)
+    pretrain_model_abs_file = os.path.join(args.model_path, args.pretrain_model_file)
+    print("pretrain_model_abs_file", pretrain_model_abs_file)
+    checkpoint = torch.load(pretrain_model_abs_file)
+    pretrain_network.load_state_dict(checkpoint['model'])
 
-    pretrain_network = None
+    # pretrain_network = None
     network = _ATTR_NETWORK(vocab_obj, args, device)
 
     total_param_num = 0
