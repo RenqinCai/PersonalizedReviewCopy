@@ -132,7 +132,7 @@ class _WINE(Dataset):
 
         user_itemdict_attrlist_dict = {}
 
-        maxitemnum_user = 20
+        maxitemnum_user = 30
 
         for (userid_i, itemid_i) in user_item_attrlist_dict:
             attr_i = user_item_attrlist_dict[(userid_i, itemid_i)]
@@ -153,7 +153,7 @@ class _WINE(Dataset):
 
             reserve_itemnum = len(itemid_list_i)
             if reserve_itemnum > maxitemnum_user:
-                reserve_itemnum = reserve_itemnum
+                reserve_itemnum = maxitemnum_user
 
             if userid_i not in reserve_user_itemdict_attrlist_dict:
                 reserve_user_itemdict_attrlist_dict[userid_i] = {}
@@ -289,12 +289,12 @@ class _WINE(Dataset):
             neg_target_iter.append(neg_target_i)
 
         ref_attr_item_iter_tensor = torch.from_numpy(np.array(ref_attr_item_iter)).long()
-        # ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
-        ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
+        ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        # ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
 
         ref_item_iter_tensor = torch.from_numpy(np.array(ref_item_iter)).long()
-        ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
-        # ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
+        # ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
+        ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
 
@@ -306,7 +306,7 @@ class _WINE(Dataset):
         neg_target_iter_tensor = torch.from_numpy(np.array(neg_target_iter)).long()
         neg_len_iter_tensor = torch.from_numpy(np.array(neg_len_iter)).long()
 
-        return ref_attr_item_iter_tensor, ref_attr_mask_item_iter_tensor, ref_item_iter_tensor, ref_item_mask_iter_tensor, user_iter_tensor, item_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
+        return ref_attr_item_iter_tensor, ref_attr_len_item_iter_tensor, ref_item_iter_tensor, ref_item_len_iter_tensor, user_iter_tensor, item_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
 
 class _WINE_TEST(Dataset):
     def __init__(self, args, vocab_obj, train_df, df):
@@ -423,7 +423,7 @@ class _WINE_TEST(Dataset):
 
         user_itemdict_attrlist_dict = {}
 
-        maxitemnum_user = 20
+        maxitemnum_user = 30
 
         for (userid_i, itemid_i) in user_item_attrlist_dict:
             attr_i = user_item_attrlist_dict[(userid_i, itemid_i)]
@@ -444,7 +444,7 @@ class _WINE_TEST(Dataset):
 
             reserve_itemnum = len(itemid_list_i)
             if reserve_itemnum > maxitemnum_user:
-                reserve_itemnum = reserve_itemnum
+                reserve_itemnum = maxitemnum_user
 
             if userid_i not in reserve_user_itemdict_attrlist_dict:
                 reserve_user_itemdict_attrlist_dict[userid_i] = {}
@@ -570,12 +570,12 @@ class _WINE_TEST(Dataset):
         
         ref_attr_item_iter_tensor = torch.from_numpy(np.array(ref_attr_item_iter)).long()
         
-        # ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
-        ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
+        ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        # ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
 
         ref_item_iter_tensor = torch.from_numpy(np.array(ref_item_iter)).long()
-        # ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
-        ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
+        ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
+        # ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
         user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
@@ -583,4 +583,4 @@ class _WINE_TEST(Dataset):
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
         target_mask_iter_tensor = torch.from_numpy(np.array(target_mask_iter)).long()
 
-        return  ref_attr_item_iter_tensor, ref_attr_mask_item_iter_tensor, ref_item_iter_tensor, ref_item_mask_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_mask_iter_tensor
+        return  ref_attr_item_iter_tensor, ref_attr_len_item_iter_tensor, ref_item_iter_tensor, ref_item_len_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_mask_iter_tensor

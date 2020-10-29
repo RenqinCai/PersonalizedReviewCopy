@@ -72,11 +72,12 @@ class _ATTR_NETWORK(nn.Module):
 
         return mask
 
-    def f_get_avg_attr(self, attr, attr_mask):
+    def f_get_avg_attr(self, attr, attr_lens):
         ### attr_user_embed: batch_size*seq_len*embed_size
         attr_embed = self.m_attr_embedding_x(attr) 
 
-        # attr_mask = ~attr_mask
+        attr_mask = self.f_generate_mask(attr_lens)
+        attr_mask = ~attr_mask
         attr_mask = attr_mask.unsqueeze(-1)
 
         masked_attr_embed = attr_embed*attr_mask
@@ -85,7 +86,7 @@ class _ATTR_NETWORK(nn.Module):
 
         return attr_x
 
-    def f_get_avg_attr_user(self, attr_item, item_mask):  
+    def f_get_avg_attr_user(self, attr_item, item_lens):  
         ### attr_user: user_num*item_num*embed_size
         ### item_mask: user_num*item_num
 
@@ -93,6 +94,9 @@ class _ATTR_NETWORK(nn.Module):
         # print("item_mask", item_mask.size())
 
         # t0 = time.time()
+
+        item_mask = self.f_generate_mask(item_lens)
+        item_mask = ~item_mask
 
         attr_user = torch.zeros((*item_mask.size(), attr_item.size(-1)), device=attr_item.device)
 
@@ -103,9 +107,6 @@ class _ATTR_NETWORK(nn.Module):
         # item_mask = item_mask.unsqueeze(-1)
         attr_user[item_mask] = attr_item
 
-        # print('step 1 {} seconds'.format(time.time() - t0))
-
-        ### attr_user: user_num*embed_size
         attr_user_mean = torch.sum(attr_user, dim=1)
         attr_user = attr_user_mean/torch.sum(item_mask, dim=1, keepdim=True)
 
@@ -118,13 +119,13 @@ class _ATTR_NETWORK(nn.Module):
         logits = logits.squeeze(-1)
 
         return logits
+      
+    def forward(self, ref_attr_item_user, ref_attr_len_item_user, ref_item_user, ref_item_len_user, user_ids, item_ids, pos_targets, pos_lens, neg_targets, neg_lens):
 
-    def forward(self, ref_attr_item_user, ref_attr_mask_item_user, ref_item_user, ref_item_mask_user, user_ids, item_ids, pos_targets, pos_lens, neg_targets, neg_lens):
+        attr_x_item_user = self.f_get_avg_attr(ref_attr_item_user, ref_attr_len_item_user)
+        attr_x = self.f_get_avg_attr_user(attr_x_item_user, ref_item_len_user)
 
-        attr_x_item_user = self.f_get_avg_attr(ref_attr_item_user, ref_attr_mask_item_user)
-        attr_x = self.f_get_avg_attr_user(attr_x_item_user, ref_item_mask_user)
-
-        user_embed = self.m_user_embedding(user_ids)
+        user_embed = self.m_user_embedding(user_ids)                                 
         item_embed = self.m_item_embedding(item_ids)
         
         neg_attr_embed_user = self.m_output_attr_embedding_user(neg_targets)

@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument('--item_boa_file', type=str, default='item_boa.json')
     parser.add_argument('--user_boa_file', type=str, default='user_boa.json')
     parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="bert2attr")
+    parser.add_argument('--model_name', type=str, default="hier2attr")
     parser.add_argument('--model_path', type=str, default="../checkpoint/")
     parser.add_argument('--pretrain_model_file', type=str, default="")
 
