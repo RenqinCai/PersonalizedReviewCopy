@@ -208,6 +208,7 @@ class _WINE(Dataset):
         
         ref_attr_len_item_iter = []
         ref_item_len_iter = []
+        # ref_item_mask_iter = []
 
         for i in range(batch_size):
             sample_i = batch[i]
@@ -227,6 +228,8 @@ class _WINE(Dataset):
 
         max_ref_attr_len_item = max(ref_attr_len_item_iter)
         max_ref_item_len = max(ref_item_len_iter)
+
+        # ref_item_mask_iter = [i for i, ref_item_len_i in enumerate(ref_item_len_iter) for j in range(ref_item_len_i)]
        
         # max_pos_targetlen_iter = max(pos_len_iter)
         max_neg_targetlen_iter = max(neg_len_iter)
@@ -237,7 +240,10 @@ class _WINE(Dataset):
         ind_pad_id = 0
 
         ref_attr_item_iter = []
+        ref_attr_mask_item_iter = []
+
         ref_item_iter = []
+        ref_item_mask_iter = []
 
         for i in range(batch_size):
             sample_i = batch[i]
@@ -255,8 +261,15 @@ class _WINE(Dataset):
                 j.extend([freq_pad_id]*(max_ref_attr_len_item-len_j))
                 ref_attr_item_iter.append(j)
 
-            ref_item_i.extend([-1]*(max_ref_item_len-ref_item_num_i))
-            ref_item_iter.append(ref_item_i)
+                mask_j = [1 for i in range(len_j)]+[0]*(max_ref_attr_len_item-len_j)
+                ref_attr_mask_item_iter.append(mask_j)
+
+            # ref_item_i.extend([-1]*(max_ref_item_len-ref_item_num_i))
+            # ref_item_iter.append(ref_item_i)
+
+            ref_item_mask_i = [1 for i in range(ref_item_num_i)]
+            ref_item_mask_i.extend([0]*(max_ref_item_len-ref_item_num_i))
+            ref_item_mask_iter.append(ref_item_mask_i)
             
             item_i = sample_i["item"]
             item_iter.append(item_i)
@@ -276,10 +289,12 @@ class _WINE(Dataset):
             neg_target_iter.append(neg_target_i)
 
         ref_attr_item_iter_tensor = torch.from_numpy(np.array(ref_attr_item_iter)).long()
-        ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        # ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
 
         ref_item_iter_tensor = torch.from_numpy(np.array(ref_item_iter)).long()
-        ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
+        ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
+        # ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
 
@@ -291,7 +306,7 @@ class _WINE(Dataset):
         neg_target_iter_tensor = torch.from_numpy(np.array(neg_target_iter)).long()
         neg_len_iter_tensor = torch.from_numpy(np.array(neg_len_iter)).long()
 
-        return ref_attr_item_iter_tensor, ref_attr_len_item_iter_tensor, ref_item_iter_tensor, ref_item_len_iter_tensor, user_iter_tensor, item_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
+        return ref_attr_item_iter_tensor, ref_attr_mask_item_iter_tensor, ref_item_iter_tensor, ref_item_mask_iter_tensor, user_iter_tensor, item_iter_tensor, pos_target_iter_tensor, pos_len_iter_tensor, neg_target_iter_tensor, neg_len_iter_tensor
 
 class _WINE_TEST(Dataset):
     def __init__(self, args, vocab_obj, train_df, df):
@@ -473,7 +488,6 @@ class _WINE_TEST(Dataset):
         item_iter = []
         user_iter = []
 
-
         ref_attr_len_item_iter = []
         ref_item_len_iter = []
 
@@ -501,7 +515,7 @@ class _WINE_TEST(Dataset):
         max_ref_item_len = max(ref_item_len_iter)
 
         max_targetlen_iter = max(target_len_iter)
-        
+
         # print("max_pos_targetlen_iter", max_pos_targetlen_iter)
         # print("max_neg_targetlen_iter", max_neg_targetlen_iter)
 
@@ -511,7 +525,10 @@ class _WINE_TEST(Dataset):
         ind_pad_id = 0
 
         ref_attr_item_iter = []
+        ref_attr_mask_item_iter = []
+
         ref_item_iter = []
+        ref_item_mask_iter = []
         
         for i in range(batch_size):
             sample_i = batch[i]
@@ -527,9 +544,15 @@ class _WINE_TEST(Dataset):
                 j.extend([freq_pad_id]*(max_ref_attr_len_item-len_j))
                 ref_attr_item_iter.append(j)
 
-            
-            ref_item_i.extend([-1]*(max_ref_item_len-ref_item_num_i))
-            ref_item_iter.append(ref_item_i)
+                mask_j = [1 for i in range(len_j)]+[0]*(max_ref_attr_len_item-len_j)
+                ref_attr_mask_item_iter.append(mask_j)
+
+            ref_item_mask_i = [1 for i in range(ref_item_num_i)]
+            ref_item_mask_i.extend([0]*(max_ref_item_len-ref_item_num_i))
+            ref_item_mask_iter.append(ref_item_mask_i)
+
+            # ref_item_i.extend([-1]*(max_ref_item_len-ref_item_num_i))
+            # ref_item_iter.append(ref_item_i)
 
             item_i = sample_i["item"]
             item_iter.append(item_i)
@@ -546,10 +569,13 @@ class _WINE_TEST(Dataset):
             target_mask_iter.append([1]*target_len_i+[0]*(max_targetlen_iter-target_len_i))
         
         ref_attr_item_iter_tensor = torch.from_numpy(np.array(ref_attr_item_iter)).long()
-        ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        
+        # ref_attr_len_item_iter_tensor = torch.from_numpy(np.array(ref_attr_len_item_iter)).long()
+        ref_attr_mask_item_iter_tensor = torch.from_numpy(np.array(ref_attr_mask_item_iter)).long()
 
         ref_item_iter_tensor = torch.from_numpy(np.array(ref_item_iter)).long()
-        ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
+        # ref_item_len_iter_tensor = torch.from_numpy(np.array(ref_item_len_iter)).long()
+        ref_item_mask_iter_tensor = torch.from_numpy(np.array(ref_item_mask_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
         user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
@@ -557,4 +583,4 @@ class _WINE_TEST(Dataset):
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
         target_mask_iter_tensor = torch.from_numpy(np.array(target_mask_iter)).long()
 
-        return  ref_attr_item_iter_tensor, ref_attr_len_item_iter_tensor, ref_item_iter_tensor, ref_item_len_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_mask_iter_tensor
+        return  ref_attr_item_iter_tensor, ref_attr_mask_item_iter_tensor, ref_item_iter_tensor, ref_item_mask_iter_tensor, user_iter_tensor, item_iter_tensor, target_iter_tensor, target_mask_iter_tensor
