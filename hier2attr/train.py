@@ -164,13 +164,15 @@ class _TRAINER(object):
 
         network.train()
 
-        for ref_attr_item_batch, ref_attr_len_item_batch, ref_item_batch, ref_item_len_batch, user_batch, item_batch, pos_target_batch, pos_length_batch, neg_target_batch, neg_length_batch in train_data:
+        for ref_attr_item_batch, ref_attr_len_item_batch, ref_item_len_batch, ref_attr_user_batch, ref_attr_len_user_batch, ref_user_len_batch, user_batch, item_batch, pos_target_batch, pos_length_batch, neg_target_batch, neg_length_batch in train_data:
             
             ref_attr_item_gpu = ref_attr_item_batch.to(self.m_device)
             ref_attr_len_item_gpu = ref_attr_len_item_batch.to(self.m_device)
-
-            ref_item_gpu = ref_item_batch.to(self.m_device)
             ref_item_len_gpu = ref_item_len_batch.to(self.m_device)
+
+            ref_attr_user_gpu = ref_attr_user_batch.to(self.m_device)
+            ref_attr_len_user_gpu = ref_attr_len_user_batch.to(self.m_device)
+            ref_user_len_gpu = ref_user_len_batch.to(self.m_device)
 
             user_gpu = user_batch.to(self.m_device)
 
@@ -182,7 +184,7 @@ class _TRAINER(object):
             neg_target_gpu = neg_target_batch.to(self.m_device)
             neg_length_gpu = neg_length_batch.to(self.m_device)
 
-            logits, mask, targets = network(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_gpu, ref_item_len_gpu, user_gpu, item_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
+            logits, mask, targets = network(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_len_gpu, ref_attr_user_gpu, ref_attr_len_user_gpu, ref_user_len_gpu, user_gpu, item_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
 
             NLL_loss = self.m_rec_loss(logits, targets, mask)
             loss = NLL_loss
@@ -238,17 +240,19 @@ class _TRAINER(object):
 
         network.eval()
         with torch.no_grad():
-            for ref_attr_item_batch, ref_attr_len_item_batch, ref_item_batch, ref_item_len_batch, user_batch, item_batch, target_batch, target_mask_batch in eval_data:			
+            for ref_attr_item_batch, ref_attr_len_item_batch, ref_item_len_batch, ref_attr_user_batch, ref_attr_len_user_batch, ref_user_len_batch, user_batch, item_batch, target_batch, target_mask_batch in eval_data:			
                 ref_attr_item_gpu = ref_attr_item_batch.to(self.m_device)
                 ref_attr_len_item_gpu = ref_attr_len_item_batch.to(self.m_device)
-
-                ref_item_gpu = ref_item_batch.to(self.m_device)
                 ref_item_len_gpu = ref_item_len_batch.to(self.m_device)
+
+                ref_attr_user_gpu = ref_attr_user_batch.to(self.m_device)
+                ref_attr_len_user_gpu = ref_attr_len_user_batch.to(self.m_device)
+                ref_user_len_gpu = ref_user_len_batch.to(self.m_device)
                
                 user_gpu = user_batch.to(self.m_device)
                 item_gpu = item_batch.to(self.m_device)
 
-                logits = network.f_eval_forward(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_gpu, ref_item_len_gpu, user_gpu, item_gpu)
+                logits = network.f_eval_forward(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_len_gpu, ref_attr_user_gpu, ref_attr_len_user_gpu, ref_user_len_gpu, user_gpu, item_gpu)
                 
                 precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=3)
 

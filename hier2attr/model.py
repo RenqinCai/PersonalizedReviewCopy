@@ -40,6 +40,8 @@ class _ATTR_NETWORK(nn.Module):
         self.m_attn = TransformerEncoder(encoder_layers, self.m_attn_layer_num)
 
         self.m_attr_embedding_x = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+        # self.m_attr_embedding_x = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+
         self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
         self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
 
@@ -53,6 +55,8 @@ class _ATTR_NETWORK(nn.Module):
         torch.nn.init.uniform_(self.m_output_attr_embedding_user.weight, -initrange, initrange)
 
         torch.nn.init.uniform_(self.m_output_attr_embedding_item.weight, -initrange, initrange)
+
+        # torch.nn.init.uniform_(self.m_attr_embedding_x_user.weight, -initrange, initrange)
 
         torch.nn.init.uniform_(self.m_attr_embedding_x.weight, -initrange, initrange)
 
@@ -107,12 +111,12 @@ class _ATTR_NETWORK(nn.Module):
         # item_mask = item_mask.unsqueeze(-1)
         attr_user[item_mask] = attr_item
 
-        attr_user_mean = torch.sum(attr_user, dim=1)
-        attr_user = attr_user_mean/torch.sum(item_mask, dim=1, keepdim=True)
+        attr_user = torch.sum(attr_user, dim=1)
+        # attr_user = attr_user_mean/torch.sum(item_mask, dim=1, keepdim=True)
 
         # print('avg user {} seconds'.format(time.time() - t0))
     
-        return attr_user
+        return attr_user, item_mask
 
     def f_get_logits(self, embed, attr):
         logits = torch.matmul(embed, attr.unsqueeze(-1))
@@ -120,10 +124,15 @@ class _ATTR_NETWORK(nn.Module):
 
         return logits
       
-    def forward(self, ref_attr_item_user, ref_attr_len_item_user, ref_item_user, ref_item_len_user, user_ids, item_ids, pos_targets, pos_lens, neg_targets, neg_lens):
+    def forward(self, ref_attr_item_user, ref_attr_len_item_user, ref_item_len_user, ref_attr_user_item, ref_attr_len_user_item, ref_user_len_item, user_ids, item_ids, pos_targets, pos_lens, neg_targets, neg_lens):
 
         attr_x_item_user = self.f_get_avg_attr(ref_attr_item_user, ref_attr_len_item_user)
-        attr_x = self.f_get_avg_attr_user(attr_x_item_user, ref_item_len_user)
+        user_x, user_mask = self.f_get_avg_attr_user(attr_x_item_user, ref_item_len_user)
+
+        attr_x_user_item = self.f_get_avg_attr(ref_attr_user_item, ref_attr_len_user_item)
+        item_x, item_mask = self.f_get_avg_attr_user(attr_x_user_item, ref_user_len_item)
+
+        x = (user_x+item_x)/torch.sum(user_mask+item_mask, dim=1, keepdim=True)
 
         user_embed = self.m_user_embedding(user_ids)                                 
         item_embed = self.m_item_embedding(item_ids)
@@ -138,7 +147,7 @@ class _ATTR_NETWORK(nn.Module):
         neg_logits_item = torch.matmul(neg_attr_embed_item, item_embed.unsqueeze(-1))
         neg_logits_item = neg_logits_item.squeeze(-1)
 
-        neg_logits_x = torch.matmul(neg_attr_embed_x, attr_x.unsqueeze(-1))
+        neg_logits_x = torch.matmul(neg_attr_embed_x, x.unsqueeze(-1))
         neg_logits_x = neg_logits_x.squeeze(-1)
 
         neg_logits = neg_logits_user+neg_logits_item+neg_logits_x
@@ -161,7 +170,7 @@ class _ATTR_NETWORK(nn.Module):
         pos_logits_item = torch.matmul(pos_attr_embed_item, item_embed.unsqueeze(-1))
         pos_logits_item = pos_logits_item.squeeze(-1)
 
-        pos_logits_x = torch.matmul(pos_attr_embed_x, attr_x.unsqueeze(-1))
+        pos_logits_x = torch.matmul(pos_attr_embed_x, x.unsqueeze(-1))
         pos_logits_x = pos_logits_x.squeeze(-1)
 
         pos_logits = pos_logits_user+pos_logits_item+pos_logits_x
@@ -179,12 +188,16 @@ class _ATTR_NETWORK(nn.Module):
 
         return logits, mask, new_targets
 
-    def f_eval_forward(self, ref_attr_item_user, ref_attr_mask_item_user, ref_item_user, ref_item_mask_user, user_ids, item_ids):
+    def f_eval_forward(self, ref_attr_item_user, ref_attr_len_item_user, ref_item_len_user, ref_attr_user_item, ref_attr_len_user_item, ref_user_len_item, user_ids, item_ids):
 
         ### attr_x_item_user: batch_size*embedding
-        attr_x_item_user = self.f_get_avg_attr(ref_attr_item_user, ref_attr_mask_item_user)
+        attr_x_item_user = self.f_get_avg_attr(ref_attr_item_user, ref_attr_len_item_user)
+        user_x, user_mask = self.f_get_avg_attr_user(attr_x_item_user, ref_item_len_user)
 
-        attr_x = self.f_get_avg_attr_user(attr_x_item_user, ref_item_mask_user)
+        attr_x_user_item = self.f_get_avg_attr(ref_attr_user_item, ref_attr_len_user_item)
+        item_x, item_mask = self.f_get_avg_attr_user(attr_x_user_item, ref_user_len_item)
+
+        # x = (user_x+item_x)/torch.sum(user_mask+item_mask, dim=1, keepdim=True)
 
         user_embed = self.m_user_embedding(user_ids)
         item_embed = self.m_item_embedding(item_ids)
@@ -193,7 +206,7 @@ class _ATTR_NETWORK(nn.Module):
 
         logits_item = torch.matmul(item_embed, self.m_output_attr_embedding_item.weight.t())
 
-        logits_x = torch.matmul(attr_x, self.m_attr_embedding_x.weight.t())
+        logits_x = torch.matmul(x, self.m_attr_embedding_x.weight.t())
 
         logits = logits_user+logits_item+logits_x
 
