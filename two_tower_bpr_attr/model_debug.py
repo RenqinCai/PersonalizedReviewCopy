@@ -43,18 +43,6 @@ class _ATTR_NETWORK(nn.Module):
         # self.m_attr_linear_user = nn.Linear(self.m_attr_embed_size, )
         # self.m_attr_linear_item = nn.Linear()
 
-        module_list = []
-        # mlp_layer_num = 2
-        # for i in range(mlp_layer_num):
-        
-        module_list.append(nn.Linear(self.m_attr_embed_size*2, self.m_attr_embed_size*3))
-        module_list.append(nn.Tanh())
-        module_list.append(nn.Linear(self.m_attr_embed_size*3, self.m_attr_embed_size*4))
-        module_list.append(nn.Tanh())
-        module_list.append(nn.Linear(self.m_attr_embed_size*4, self.m_attr_embed_size*2))
-
-        self.m_attr_output = nn.Sequential(*module_list)
-
         # self.m_exp_user = nn.Linear(1, 1)
         # self.m_log_user = nn.Linear(1, 1)
         # self.m_linear_user = nn.Linear(1, 1)

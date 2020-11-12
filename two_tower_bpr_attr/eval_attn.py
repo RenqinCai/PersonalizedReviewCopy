@@ -48,22 +48,15 @@ class _EVAL(object):
 
     def f_eval_new(self, train_data, eval_data):
 
-        batch_index = 0
-
         precision_list = []
         recall_list = []
         F1_list = []
 
         print('--'*10)
-        # print("user output weight", self.m_network.m_user_output.weight)
-        # print("item output weight", self.m_network.m_item_output.weight)
 
+        topk = 3
         self.m_network.eval()
         with torch.no_grad():
-            pop_correct_num_total = 0
-            non_pop_correct_num_total = 0
-            pred_num_total = 0
-            topk = 3
 
             for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, user_batch, target_batch, target_mask_batch in eval_data:			
                 attr_item_gpu = attr_item_batch.to(self.m_device)
@@ -78,13 +71,13 @@ class _EVAL(object):
 
                 logits = self.m_network.f_eval_forward(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu)
                 
-                precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=3)
+                precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=topk)
                 
-                if precision != 0 and recall != 0:
+                # if precision != 0 and recall != 0:
                     # loss_list.append(loss.item()) 
-                    precision_list.append(precision)
-                    recall_list.append(recall)
-                    F1_list.append(F1)
+                precision_list.append(precision)
+                recall_list.append(recall)
+                F1_list.append(F1)
 
         mean_precision = np.mean(precision_list)
         print("precision: ", mean_precision)

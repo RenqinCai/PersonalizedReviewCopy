@@ -9,10 +9,11 @@ import datetime
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS
+from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS, XE_LOSS
 from metric import get_precision_recall, get_precision_recall_train, get_precision_recall_F1
 # from model_debug import _ATTR_NETWORK
-from model_avg import _ATTR_NETWORK
+from model_pop import _ATTR_NETWORK
+# from model_softmax import _ATTR_NETWORK
 from infer_new import _INFER
 import random
 
@@ -24,6 +25,7 @@ class _TRAINER(object):
         self.m_device = device
 
         self.m_pad_idx = vocab.pad_idx
+        self.m_vocab_size = vocab.vocab_size
 
         self.m_save_mode = True
 
@@ -38,13 +40,12 @@ class _TRAINER(object):
         
         self.m_epochs = args.epoch_num
         self.m_batch_size = args.batch_size
-
-        # self.m_x0 = args.x0
-        # self.m_k = args.k
         
         # self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_LOSS(self.m_pad_idx, self.m_device)
+        # self.m_rec_loss = XE_LOSS(self.m_vocab_size, self.m_device)
+
         self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
 
         self.m_train_step = 0
@@ -97,9 +98,6 @@ class _TRAINER(object):
                     print("!"*10, "error val loss increase", "!"*10, "last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
                     
                     overfit_indicator += 1
-
-                    # if overfit_indicator > self.m_overfit_epoch_threshold:
-                    # 	break
                 else:
                     print("last val loss %.4f"%last_eval_loss, "cur val loss %.4f"%self.m_mean_eval_loss)
                     last_eval_loss = self.m_mean_eval_loss
@@ -172,10 +170,15 @@ class _TRAINER(object):
             neg_target_gpu = neg_target_batch.to(self.m_device)
             neg_length_gpu = neg_length_batch.to(self.m_device)
 
-            logits, mask, targets, norm_loss = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
+            logits, mask, targets = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
 
             NLL_loss = self.m_rec_loss(logits, targets, mask)
-            loss = NLL_loss+norm_loss
+
+            # NLL_loss = self.m_rec_loss(logits, pos_target_gpu)
+
+            # print("norm_loss", norm_loss.item())
+
+            loss = NLL_loss
 
             precision = 1.0
             recall = 1.0
@@ -227,6 +230,7 @@ class _TRAINER(object):
         # logger_obj.f_add_output2IO("--"*20)
 
         network.eval()
+        topk = 1
         with torch.no_grad():
             for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, user_batch, target_batch, target_mask_batch in eval_data:			
                 attr_item_gpu = attr_item_batch.to(self.m_device)
@@ -241,7 +245,7 @@ class _TRAINER(object):
 
                 logits = network.f_eval_forward(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu)
                 
-                precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=3)
+                precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=topk)
                 
                 precision_list.append(precision)
                 recall_list.append(recall)

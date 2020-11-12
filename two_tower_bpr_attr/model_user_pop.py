@@ -1,5 +1,5 @@
 """
-regularized version of loss
+model_avg+attribute_pop
 """
 
 import torch
@@ -106,44 +106,25 @@ class _ATTR_NETWORK(nn.Module):
 
         """ item """
 
-        attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
+        # attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
        
-        item_x = attr_attn_item
+        attr_item_mask = self.f_generate_mask(attr_lens_item)
+        # item_x = attr_attn_item
         
-        # """ user """
+        # """ user """  
+        attr_user_mask = self.f_generate_mask(attr_lens_user)
 
-        attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
+        # attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
         
-        user_x = attr_attn_user
+        # user_x = attr_attn_user
 
         ### user_x: batch_size*user_embed
         user_embed = self.m_user_embedding(user_ids)
 
         item_embed = self.m_item_embedding(item_ids)
 
-        # item_attr_user_output = torch.zeros_like(user_embed)
-        # user_attr_item_output = torch.zeros_like(item_embed)
-
-        # user_output = user_embed
-        # item_output = item_embed
-
-        # user_output = item_attr_user_output
-        # item_output = user_attr_item_output
-
         user_output = user_embed
         item_output = item_embed
-        
-        ### user_embed: batch_size*embed_size
-        user_loss = torch.sum(torch.pow(user_embed-user_x, 2), dim=-1)
-        item_loss = torch.sum(torch.pow(item_embed-item_x, 2), dim=-1)
-
-        norm_loss = user_loss + item_loss
-        norm_loss = self.m_beta*torch.sum(norm_loss)
-        # user_output = torch.cat([user_embed, scalar_weight*user_x], dim=-1)
-        # item_output = torch.cat([item_embed, scalar_weight*item_x], dim=-1)
-
-        # user_output = (1-self.m_gamma)*user_embed + self.m_gamma*item_attr_user_output
-        # item_output = (1-self.m_gamma)*item_embed + self.m_gamma*user_attr_item_output
         
         neg_embed_user = self.m_output_attr_embedding_user(neg_targets)
         neg_embed_item = self.m_output_attr_embedding_item(neg_targets)
@@ -152,10 +133,6 @@ class _ATTR_NETWORK(nn.Module):
         ### neg_logits: batch_size*neg_num
 
         neg_logits_user = self.f_get_logits(neg_embed_user, user_output)
-
-        # neg_logits_item = torch.matmul(neg_embed_item, item_output.unsqueeze(-1))
-        # neg_logits_item = neg_logits_item.squeeze(-1)
-
         neg_logits_item = self.f_get_logits(neg_embed_item, item_output)
 
         # print("neg_lens", neg_lens)
@@ -182,37 +159,48 @@ class _ATTR_NETWORK(nn.Module):
 
         logits = torch.cat([pos_logits, neg_logits], dim=-1)
 
+        logits += attr_tf_user
+        # tmp_logits = logits.gather(1, attr_user)+attr_tf_user
+        # logits.scatter_(1, attr_user, tmp_logits)
+
+        # batch_size = user_ids.size(0)
+        # for i in range(batch_size):
+        #     logits[i] += attr_tf_user[i]
+        # logits[torch.arange(batch_size), attr_user] += attr_tf_user*(~attr_user_mask)
+
         mask = torch.cat([pos_mask, neg_mask], dim=-1)
 
         new_targets = torch.cat([torch.ones_like(pos_targets), torch.zeros_like(neg_targets)], dim=1)
 
         new_targets = new_targets*mask
 
-        return logits, mask, new_targets, norm_loss
+        return logits, mask, new_targets
 
     def f_eval_forward(self, attr_item, attr_tf_item, attr_lens_item, item_ids, attr_user, attr_tf_user, attr_lens_user, user_ids):
 
-        """ item """
-        attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
+        # """ item """
+        # attr_attn_item, attr_item_mask = self.f_get_avg_attr_item(attr_item, attr_lens_item)   
 
-        item_x = attr_attn_item
+        # item_x = attr_attn_item
         
-        """ user """
-        attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
+        # """ user """
+        # attr_attn_user, attr_user_mask = self.f_get_avg_attr_user(attr_user, attr_lens_user)
         
-        user_x = attr_attn_user
+        # user_x = attr_attn_user
+
+        attr_item_mask = self.f_generate_mask(attr_lens_item)
+        # item_x = attr_attn_item
+        
+        # """ user """  
+        attr_user_mask = self.f_generate_mask(attr_lens_user)
 
         scalar_weight = 1
-        # print(item_attr_user_output.size())
         # user_output = user_embed
         # item_output = item_embed
         
         ### user_x: batch_size*user_embed
         user_embed = self.m_user_embedding(user_ids)
         item_embed = self.m_item_embedding(item_ids)
-
-        # print("user_attr_item_output", user_attr_item_output)
-        # print("item_embed", item_embed)
 
         # item_attr_user_output = torch.zeros_like(user_embed)
         # user_attr_item_output = torch.zeros_like(item_embed)
@@ -227,5 +215,13 @@ class _ATTR_NETWORK(nn.Module):
         logits_item = torch.matmul(item_output, self.m_output_attr_embedding_item.weight.t())
 
         logits = logits_user+logits_item
-        # exit()
+
+        # batch_size = user_ids.size(0)
+
+        # for i in range(batch_size):
+        #     logits[i][attr_user[i]] += attr_tf_user[i]*(~attr_user_mask[i])
+        
+        tmp_logits = logits.gather(1, attr_user)+attr_tf_user*(~attr_user_mask)
+        logits.scatter_(1, attr_user, tmp_logits)
+        
         return logits

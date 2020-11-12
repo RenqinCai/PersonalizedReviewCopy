@@ -22,7 +22,7 @@ from collections import Counter
 from yelp_restaurant import _YELP_RESTAURANT
 # from movie_debug import _MOVIE, _MOVIE_TEST
 from movie import _MOVIE, _MOVIE_TEST
-from wine import _WINE, _WINE_TEST
+from wine_pop import _WINE, _WINE_TEST
 from ratebeer import _RATEBEER, _RATEBEER_TEST
 
 from torch.utils.data.distributed import DistributedSampler

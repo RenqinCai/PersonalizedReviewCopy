@@ -37,6 +37,9 @@ class _ATTR_NETWORK(nn.Module):
         self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
         self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
 
+        self.m_output_attr_embedding_user_x = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+        self.m_output_attr_embedding_item_x = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+
         self.m_exp_user = nn.Linear(1, 1)
         self.m_log_user = nn.Linear(1, 1)
         self.m_linear_user = nn.Linear(1, 1)
@@ -65,6 +68,9 @@ class _ATTR_NETWORK(nn.Module):
         initrange = 0.1
         torch.nn.init.uniform_(self.m_output_attr_embedding_user.weight, -initrange, initrange)
         torch.nn.init.uniform_(self.m_output_attr_embedding_item.weight, -initrange, initrange)
+
+        torch.nn.init.uniform_(self.m_output_attr_embedding_user_x.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_output_attr_embedding_item_x.weight, -initrange, initrange)
 
         torch.nn.init.uniform_(self.m_attr_embedding.weight, -initrange, initrange)
         # torch.nn.init.normal_(self.m_tag_item_embedding.weight, 0.0, 0.01)
@@ -149,11 +155,20 @@ class _ATTR_NETWORK(nn.Module):
 
         ### user_item_output: batch_size*ouput_size
         ### neg_logits: batch_size*neg_num
-        neg_logits_user = torch.matmul(neg_embed_user, user_output.unsqueeze(-1))
+        neg_logits_user = torch.matmul(neg_embed_user, user_embed.unsqueeze(-1))
         neg_logits_user = neg_logits_user.squeeze(-1)
 
-        neg_logits_item = torch.matmul(neg_embed_item, item_output.unsqueeze(-1))
+        neg_logits_item = torch.matmul(neg_embed_item, item_embed.unsqueeze(-1))
         neg_logits_item = neg_logits_item.squeeze(-1)
+
+        neg_embed_user_x = self.m_output_attr_embedding_user_x(neg_targets)
+        neg_embed_item_x = self.m_output_attr_embedding_item_x(neg_targets)
+
+        neg_logits_user_x = torch.matmul(neg_embed_user_x, user_output.unsqueeze(-1))
+        neg_logits_user_x = neg_logits_user_x.squeeze(-1)
+
+        neg_logits_item_x = torch.matmul(neg_embed_item_x, item_output.unsqueeze(-1))
+        neg_logits_item_x = neg_logits_item_x.squeeze(-1)
 
         # print("neg_lens", neg_lens)
         # exit()
@@ -169,14 +184,23 @@ class _ATTR_NETWORK(nn.Module):
 
         ### user_item_output: batch_size*ouput_size
         ### neg_logits: batch_size*neg_num
-        pos_logits_user = torch.matmul(pos_embed_user, user_output.unsqueeze(-1))
+        pos_logits_user = torch.matmul(pos_embed_user, user_embed.unsqueeze(-1))
         pos_logits_user = pos_logits_user.squeeze(-1)
 
-        pos_logits_item = torch.matmul(pos_embed_item, item_output.unsqueeze(-1))
+        pos_logits_item = torch.matmul(pos_embed_item, item_embed.unsqueeze(-1))
         pos_logits_item = pos_logits_item.squeeze(-1)
 
-        pos_logits = pos_logits_user+pos_logits_item
-        neg_logits = neg_logits_user+neg_logits_item
+        pos_embed_user_x = self.m_output_attr_embedding_user_x(pos_targets)
+        pos_embed_item_x = self.m_output_attr_embedding_item_x(pos_targets)
+
+        pos_logits_user_x = torch.matmul(pos_embed_user_x, user_output.unsqueeze(-1))
+        pos_logits_user_x = pos_logits_user_x.squeeze(-1)
+
+        pos_logits_item_x = torch.matmul(pos_embed_item_x, item_output.unsqueeze(-1))
+        pos_logits_item_x = pos_logits_item_x.squeeze(-1)
+
+        pos_logits = pos_logits_user+pos_logits_item+pos_logits_user_x+pos_logits_item_x
+        neg_logits = neg_logits_user+neg_logits_item+neg_logits_user_x+neg_logits_item_x
 
         pos_mask = self.f_generate_mask(pos_lens)
         pos_mask = ~pos_mask
@@ -251,9 +275,12 @@ class _ATTR_NETWORK(nn.Module):
         # user_output = (1.0-self.m_gamma)*user_embed+self.m_gamma*item_attr_user_output
         # item_output = (1.0-self.m_gamma)*item_embed+self.m_gamma*user_attr_item_output
 
-        logits_user = torch.matmul(user_output, self.m_output_attr_embedding_user.weight.t())
-        logits_item = torch.matmul(item_output, self.m_output_attr_embedding_item.weight.t())
+        logits_user = torch.matmul(user_embed, self.m_output_attr_embedding_user.weight.t())
+        logits_item = torch.matmul(item_embed, self.m_output_attr_embedding_item.weight.t())
 
-        logits = logits_user+logits_item
+        logits_user_x = torch.matmul(user_output, self.m_output_attr_embedding_user_x.weight.t())
+        logits_item_x = torch.matmul(item_output, self.m_output_attr_embedding_item_x.weight.t())
+
+        logits = logits_user+logits_item+logits_user_x+logits_item_x
 
         return logits
