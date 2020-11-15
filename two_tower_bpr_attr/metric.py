@@ -125,13 +125,15 @@ def get_precision_recall_F1(preds, targets, mask, k=1):
     F1_list = []
 
     for i, pred_index in enumerate(indices):
+        len_i = sum(mask[i]).item()
+
         pred_i = list(pred_index.numpy())
-        target_i = list(targets[i].numpy())
+        target_i = list(targets[i, :len_i].numpy())
         true_pos = set(target_i) & set(pred_i)
         true_pos_num = len(true_pos)
 
         precision = true_pos_num/k
-        recall = true_pos_num/(sum(mask[i]).item())
+        recall = true_pos_num/len_i
 
         precision_list.append(precision)
         recall_list.append(recall)

@@ -82,7 +82,6 @@ class _WINE(Dataset):
             neg_attrlist_i = list(neg_attr_list[sample_index])
             neg_attrlist_i = [int(j) for j in neg_attrlist_i]
 
-
             attrdict_item_i = boa_item_dict[str(item_id)]              
             attrlist_item_i = list(attrdict_item_i.keys())
             attrlist_item_i = [int(i) for i in attrlist_item_i]

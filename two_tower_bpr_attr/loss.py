@@ -14,7 +14,14 @@ class XE_LOSS(nn.Module):
         self.m_device = device
     
     def forward(self, preds, targets):
-        targets = torch.sum(F.one_hot(targets, self.m_voc_size), dim=1)
+        # print("==="*10)
+        # print(targets.size())
+        targets = F.one_hot(targets, self.m_voc_size)
+
+        # print(targets.size())
+        targets = torch.sum(targets, dim=1)
+
+        # print(targets.size())
 
         targets[:, 0] = 0
 

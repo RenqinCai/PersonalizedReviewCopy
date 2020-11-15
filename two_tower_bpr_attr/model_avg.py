@@ -39,8 +39,10 @@ class _ATTR_NETWORK(nn.Module):
 
         self.m_gamma = args.gamma
 
-        self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
-        self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+        self.m_output_attr_embedding = nn.Linear(self.m_attr_embed_size*4, self.m_vocab_size)
+
+        # self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
+        # self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size)
 
         # self.m_output_attr_embedding_user = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
         # self.m_output_attr_embedding_item = nn.Embedding(self.m_vocab_size, self.m_attr_embed_size*2)
@@ -53,8 +55,9 @@ class _ATTR_NETWORK(nn.Module):
 
     def f_init_weight(self):
         initrange = 0.1
-        torch.nn.init.uniform_(self.m_output_attr_embedding_user.weight, -initrange, initrange)
-        torch.nn.init.uniform_(self.m_output_attr_embedding_item.weight, -initrange, initrange)
+        # torch.nn.init.uniform_(self.m_output_attr_embedding_user.weight, -initrange, initrange)
+        torch.nn.init.uniform_(self.m_output_attr_embedding.weight, -initrange, initrange)
+        # torch.nn.init.uniform_(self.m_output_attr_embedding_item.weight, -initrange, initrange)
 
         # torch.nn.init.uniform_(self.m_attr_embedding.weight, -initrange, initrange)
         # torch.nn.init.normal_(self.m_tag_item_embedding.weight, 0.0, 0.01)
@@ -121,74 +124,14 @@ class _ATTR_NETWORK(nn.Module):
 
         item_embed = self.m_item_embedding(item_ids)
 
-        # item_attr_user_output = torch.zeros_like(user_embed)
-        # user_attr_item_output = torch.zeros_like(item_embed)
-
-        # user_output = user_embed
-        # item_output = item_embed
-
         # user_output = item_attr_user_output
         # item_output = user_attr_item_output
 
-        user_output = user_embed
-        item_output = item_embed
-        
-        ### user_embed: batch_size*embed_size
-        user_loss = torch.sum(torch.pow(user_embed-user_x, 2), dim=-1)
-        item_loss = torch.sum(torch.pow(item_embed-item_x, 2), dim=-1)
+        output = torch.cat([user_embed, user_x, item_embed, item_x], dim=-1)
 
-        norm_loss = user_loss + item_loss
-        norm_loss = self.m_beta*torch.sum(norm_loss)
-        # user_output = torch.cat([user_embed, scalar_weight*user_x], dim=-1)
-        # item_output = torch.cat([item_embed, scalar_weight*item_x], dim=-1)
+        logits = self.m_output_attr_embedding(output)
 
-        # user_output = (1-self.m_gamma)*user_embed + self.m_gamma*item_attr_user_output
-        # item_output = (1-self.m_gamma)*item_embed + self.m_gamma*user_attr_item_output
-        
-        neg_embed_user = self.m_output_attr_embedding_user(neg_targets)
-        neg_embed_item = self.m_output_attr_embedding_item(neg_targets)
-
-        ### user_item_output: batch_size*ouput_size
-        ### neg_logits: batch_size*neg_num
-
-        neg_logits_user = self.f_get_logits(neg_embed_user, user_output)
-
-        # neg_logits_item = torch.matmul(neg_embed_item, item_output.unsqueeze(-1))
-        # neg_logits_item = neg_logits_item.squeeze(-1)
-
-        neg_logits_item = self.f_get_logits(neg_embed_item, item_output)
-
-        # print("neg_lens", neg_lens)
-        # exit()
-        neg_mask = self.f_generate_mask(neg_lens)
-        neg_mask = ~neg_mask
-
-        ### targets: batch_size*pos_num
-
-        pos_embed_user = self.m_output_attr_embedding_user(pos_targets)
-        pos_embed_item = self.m_output_attr_embedding_item(pos_targets)
-
-        ### user_item_output: batch_size*ouput_size
-        ### neg_logits: batch_size*neg_num
-
-        pos_logits_user = self.f_get_logits(pos_embed_user, user_output)
-        pos_logits_item = self.f_get_logits(pos_embed_item, item_output)
-
-        pos_logits = pos_logits_user+pos_logits_item
-        neg_logits = neg_logits_user+neg_logits_item
-
-        pos_mask = self.f_generate_mask(pos_lens)
-        pos_mask = ~pos_mask
-
-        logits = torch.cat([pos_logits, neg_logits], dim=-1)
-
-        mask = torch.cat([pos_mask, neg_mask], dim=-1)
-
-        new_targets = torch.cat([torch.ones_like(pos_targets), torch.zeros_like(neg_targets)], dim=1)
-
-        new_targets = new_targets*mask
-
-        return logits, mask, new_targets, norm_loss
+        return logits, None, None     
 
     def f_eval_forward(self, attr_item, attr_tf_item, attr_lens_item, item_ids, attr_user, attr_tf_user, attr_lens_user, user_ids):
 
@@ -211,21 +154,11 @@ class _ATTR_NETWORK(nn.Module):
         user_embed = self.m_user_embedding(user_ids)
         item_embed = self.m_item_embedding(item_ids)
 
-        # print("user_attr_item_output", user_attr_item_output)
-        # print("item_embed", item_embed)
-
-        # item_attr_user_output = torch.zeros_like(user_embed)
-        # user_attr_item_output = torch.zeros_like(item_embed)
-
-        # user_output = torch.cat([user_embed, scalar_weight*user_x], dim=-1)
-        # item_output = torch.cat([item_embed, scalar_weight*item_x], dim=-1)
-
         user_output = user_embed
         item_output = item_embed
 
-        logits_user = torch.matmul(user_output, self.m_output_attr_embedding_user.weight.t())
-        logits_item = torch.matmul(item_output, self.m_output_attr_embedding_item.weight.t())
+        output = torch.cat([user_embed, user_x, item_embed, item_x], dim=-1)
 
-        logits = logits_user+logits_item
-        # exit()
+        logits = self.m_output_attr_embedding(output)
+
         return logits

@@ -12,8 +12,9 @@ from torch.utils.data import DataLoader
 from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS, XE_LOSS
 from metric import get_precision_recall, get_precision_recall_train, get_precision_recall_F1
 # from model_debug import _ATTR_NETWORK
-from model_pop import _ATTR_NETWORK
-# from model_softmax import _ATTR_NETWORK
+# from model_pop import _ATTR_NETWORK
+# from model_avg import _ATTR_NETWORK
+from model_softmax import _ATTR_NETWORK
 from infer_new import _INFER
 import random
 
@@ -44,9 +45,9 @@ class _TRAINER(object):
         # self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_LOSS(self.m_pad_idx, self.m_device)
-        # self.m_rec_loss = XE_LOSS(self.m_vocab_size, self.m_device)
+        self.m_rec_loss = XE_LOSS(self.m_vocab_size, self.m_device)
 
-        self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
+        # self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
 
         self.m_train_step = 0
         self.m_valid_step = 0
@@ -172,9 +173,9 @@ class _TRAINER(object):
 
             logits, mask, targets = network(attr_item_gpu, attr_tf_item_gpu, attr_length_item_gpu, item_gpu, attr_user_gpu, attr_tf_user_gpu, attr_length_user_gpu, user_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
 
-            NLL_loss = self.m_rec_loss(logits, targets, mask)
+            # NLL_loss = self.m_rec_loss(logits, targets, mask)
 
-            # NLL_loss = self.m_rec_loss(logits, pos_target_gpu)
+            NLL_loss = self.m_rec_loss(logits, pos_target_gpu)
 
             # print("norm_loss", norm_loss.item())
 
@@ -230,7 +231,7 @@ class _TRAINER(object):
         # logger_obj.f_add_output2IO("--"*20)
 
         network.eval()
-        topk = 1
+        topk = 3
         with torch.no_grad():
             for attr_item_batch, attr_tf_item_batch, attr_length_item_batch, item_batch, attr_user_batch, attr_tf_user_batch, attr_length_user_batch, user_batch, target_batch, target_mask_batch in eval_data:			
                 attr_item_gpu = attr_item_batch.to(self.m_device)

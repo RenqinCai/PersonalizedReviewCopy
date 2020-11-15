@@ -88,7 +88,20 @@ class _ATTR_NETWORK(nn.Module):
         item_logits = self.m_output_attr_embedding_item(item_embed)
 
         logits = user_logits+item_logits
-        
+
+        attr_item_mask = self.f_generate_mask(attr_lens_item)
+        tmp_logits = logits.gather(1, attr_item)
+
+        tmp_logits += attr_tf_item*(~attr_item_mask)
+
+        logits.scatter_(1, attr_item, tmp_logits)
+
+        attr_user_mask = self.f_generate_mask(attr_lens_user)
+        tmp_logits = logits.gather(1, attr_user)
+
+        tmp_logits += attr_tf_user*(~attr_user_mask)
+        logits.scatter_(1, attr_user, tmp_logits)
+
         # logits += attr_tf_user
         # logits += attr_tf_item
 
@@ -128,15 +141,15 @@ class _ATTR_NETWORK(nn.Module):
 
         logits = logits_user+logits_item
 
-        # tmp_logits = logits.gather(1, attr_item)
+        tmp_logits = logits.gather(1, attr_item)
 
-        # tmp_logits += attr_tf_item*(~attr_item_mask)
+        tmp_logits += attr_tf_item*(~attr_item_mask)
 
-        # logits.scatter_(1, attr_item, tmp_logits)
+        logits.scatter_(1, attr_item, tmp_logits)
 
-        # tmp_logits = logits.gather(1, attr_user)
+        tmp_logits = logits.gather(1, attr_user)
 
-        # tmp_logits += attr_tf_user*(~attr_user_mask)
-        # logits.scatter_(1, attr_user, tmp_logits)
+        tmp_logits += attr_tf_user*(~attr_user_mask)
+        logits.scatter_(1, attr_user, tmp_logits)
 
         return logits

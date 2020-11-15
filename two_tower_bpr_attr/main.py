@@ -17,8 +17,9 @@ import time
 # from train_debug import _TRAINER
 # from model_debug import _ATTR_NETWORK
 from train import _TRAINER
-from model_pop import _ATTR_NETWORK
-# from model_softmax import _ATTR_NETWORK
+# from model_avg import _ATTR_NETWORK
+# from model_pop import _ATTR_NETWORK
+from model_softmax import _ATTR_NETWORK
 from eval_attn import _EVAL
 from infer_attn import _INFER
 # from eval_pop import _EVAL
