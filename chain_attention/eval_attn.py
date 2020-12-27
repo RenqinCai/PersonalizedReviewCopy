@@ -68,6 +68,11 @@ class _EVAL(object):
 
                 preds = self.m_network.f_eval(user_gpu, item_gpu, topk)
 
+                # print("user_gpu", user_gpu)
+                # print("item_gpu", item_gpu)
+                # print("preds", preds)
+                # print("target_batch", target_batch)
+
                 precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
                 
                 # print("recall%.4f"%recall, end=", ")
@@ -75,6 +80,8 @@ class _EVAL(object):
                 precision_list.append(precision)
                 recall_list.append(recall)
                 F1_list.append(F1)
+
+                # exit()
 
         mean_precision = np.mean(precision_list)
         print("precision: ", mean_precision)

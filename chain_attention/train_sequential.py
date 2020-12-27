@@ -13,8 +13,8 @@ from metric import get_precision_recall_F1_test, get_precision_recall_F1
 # from model_debug import _ATTR_NETWORK
 # from model_pop import _ATTR_NETWORK
 # from model_avg import _ATTR_NETWORK
-# from model_sequential import _ATTR_NETWORK
-from model import _ATTR_NETWORK
+from model_sequential import _ATTR_NETWORK
+# from model import _ATTR_NETWORK
 from infer_new import _INFER
 import random
 
@@ -234,27 +234,27 @@ class _TRAINER(object):
         network.eval()
         topk = 3
         with torch.no_grad():
-            for user_batch, item_batch, target_len_batch, target_batch in eval_data:
+            for user_batch, item_batch, attr_batch, attr_len_batch, target_len_batch, target_batch in eval_data:
 
                 user_gpu = user_batch.to(self.m_device)
 
                 item_gpu = item_batch.to(self.m_device)
 
+                attr_gpu = attr_batch.to(self.m_device)
+
+                attr_len_gpu = attr_len_batch.to(self.m_device)
+
                 target_gpu = target_batch.to(self.m_device)
 
-                preds = network.f_eval(user_gpu, item_gpu, topk)
+                preds = network.f_eval(user_gpu, item_gpu, attr_gpu, attr_len_gpu, topk)
 
-                # print("target_len_batch")
-
+                # precision, recall, F1= get_precision_recall_F1(preds.cpu(), target_batch, k=topk)
                 precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
-                
-                # print("recall%.4f"%recall, end=", ")
-
+            
                 precision_list.append(precision)
                 recall_list.append(recall)
                 F1_list.append(F1)
-            # exit()
-            # print()
+        
 
             logger_obj.f_add_output2IO("%d, precision:%.4f, recall:%.4f, F1:%.4f"%(self.m_eval_iteration, np.mean(precision_list), np.mean(recall_list), np.mean(F1_list)))            
             logger_obj.f_add_scalar2tensorboard("eval/precision", np.mean(precision_list), self.m_eval_iteration)

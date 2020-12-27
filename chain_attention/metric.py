@@ -185,7 +185,6 @@ def get_precision_recall_F1_test(preds, targets, lens, k=1):
     targets = targets.numpy()
     lens = lens.numpy()
 
-    # print("++++"*10)
     for i, _ in enumerate(indices):
         
         len_i = lens[i]
@@ -193,12 +192,6 @@ def get_precision_recall_F1_test(preds, targets, lens, k=1):
         target_i = list(targets[i, :len_i])
         true_pos = set(target_i) & set(pred_i)
         true_pos_num = len(true_pos)
-
-        # print(len(target_i), end=", ")
-
-        # print("len_i", len_i)
-        # if len_i != len(target_i):
-        #     print("error")
 
         precision = true_pos_num*1.0/k
         recall = true_pos_num*1.0/len(target_i)
@@ -212,8 +205,5 @@ def get_precision_recall_F1_test(preds, targets, lens, k=1):
     avg_precision = np.mean(precision_list)
     avg_recall = np.mean(recall_list)
     avg_F1 = np.mean(F1_list)
-    # print("avg_precision", avg_precision)
-    # print("avg_recall", avg_recall)
-    # exit()
 
     return avg_precision, avg_recall, avg_F1

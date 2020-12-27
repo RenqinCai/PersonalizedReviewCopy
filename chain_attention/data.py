@@ -19,6 +19,7 @@ from collections import Counter
 from yelp_restaurant import _YELP_RESTAURANT
 # from movie_debug import _MOVIE, _MOVIE_TEST
 from movie import MOVIE, MOVIE_TEST
+# from wine_sequential import WINE, WINE_TEST
 from wine import WINE, WINE_TEST
 from ratebeer import _RATEBEER, _RATEBEER_TEST
 
@@ -162,9 +163,12 @@ class _DATA():
         # test_data_file = args.data_dir+"/new_valid.pickle"
 
         # train_data_file = args.data_dir+"/train_debug.pickle"
-        train_data_file = args.data_dir+"/train.pickle"
-        valid_data_file = args.data_dir+"/valid.pickle"
-        test_data_file = args.data_dir+"/valid.pickle"
+        train_data_file = args.data_dir+"/sort_train.pickle"
+        valid_data_file = args.data_dir+"/sort_valid.pickle"
+        test_data_file = args.data_dir+"/sort_valid.pickle"
+        # train_data_file = args.data_dir+"/train.pickle"
+        # valid_data_file = args.data_dir+"/valid.pickle"
+        # test_data_file = args.data_dir+"/valid.pickle"
         
         train_df = pd.read_pickle(train_data_file)
         valid_df = pd.read_pickle(valid_data_file)

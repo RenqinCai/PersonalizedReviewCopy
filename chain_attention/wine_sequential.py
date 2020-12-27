@@ -61,13 +61,20 @@ class WINE(Dataset):
 
             pos_attr_list_i = pos_attr_list[sample_index]
             pos_attr_list_i = [int(i) for i in pos_attr_list_i]
-            
-            random.shuffle(pos_attr_list_i)
+
+            # random.shuffle(pos_attr_list_i)
 
             pos_attr_list_len_i = len(pos_attr_list_i)
 
             if pos_attr_list_len_i == 1:
                 continue
+
+            # j = 0
+            # if j >= pos_attr_list_len_i:
+            #     continue
+
+            # self.m_input_attr_list.append(pos_attr_list_i[:j])
+            # self.m_target_list.append(pos_attr_list_i[j])
 
             self.m_user_batch_list.append(user_id)
             self.m_item_batch_list.append(item_id)
@@ -215,23 +222,35 @@ class WINE_TEST(Dataset):
             pos_attr_list_i = pos_attr_list[sample_index]
             pos_attr_list_i = [int(i) for i in pos_attr_list_i]
 
+            pos_attr_list_len_i = len(pos_attr_list_i)
+
             # random.shuffle(pos_attr_list_i)
-            if len(pos_attr_list_i) == 1:
+            if pos_attr_list_len_i == 1:
+                continue
+            
+            j = 0
+            if j >= len(pos_attr_list_i):
                 continue
 
-            self.m_input_attr_list.append([])
-            self.m_target_list.append(pos_attr_list_i)
+            self.m_input_attr_list.append(pos_attr_list_i[:j])
+            self.m_target_list.append([pos_attr_list_i[j]])
 
-            # pos_attr_list_len_i = len(pos_attr_list_i)
+            self.m_user_batch_list.append(user_id)
+            self.m_item_batch_list.append(item_id)
+            
+            # self.m_input_attr_list.append([])
+            # self.m_target_list.append([pos_attr_list_i[0]])
+
             # for j in range(1, pos_attr_list_len_i):
             #     input_attr_list_ij = pos_attr_list_i[:j]
             #     target_ij = pos_attr_list_i[j]
             
-            self.m_user_batch_list.append(user_id)
-            self.m_item_batch_list.append(item_id)
+            #     self.m_user_batch_list.append(user_id)
+            #     self.m_item_batch_list.append(item_id)
 
             #     self.m_input_attr_list.append(input_attr_list_ij)
-            #     self.m_target_list.append(target_ij)
+            #     # self.m_target_list.append(target_ij)
+            #     self.m_target_list.append([target_ij])
 
         print("... load train data ...", len(self.m_item_batch_list), len(self.m_input_attr_list), len(self.m_target_list))
 
@@ -263,8 +282,8 @@ class WINE_TEST(Dataset):
         user_iter = []
         item_iter = []
 
-        # input_attr_iter = []
-        # input_attr_len_iter = []
+        input_attr_iter = []
+        input_attr_len_iter = []
 
         target_len_iter = []
 
@@ -273,14 +292,14 @@ class WINE_TEST(Dataset):
         for i in range(batch_size):
             sample_i = batch[i]
         
-            # input_attr_i = sample_i["input_attr"]
-            # input_attr_len_i = len(input_attr_i)
-            # input_attr_len_iter.append(input_attr_len_i)
+            input_attr_i = sample_i["input_attr"]
+            input_attr_len_i = len(input_attr_i)
+            input_attr_len_iter.append(input_attr_len_i)
 
             target_i = sample_i["target"]
             target_len_iter.append(len(target_i))
 
-        # max_input_attr_len = max(input_attr_len_iter)
+        max_input_attr_len = max(input_attr_len_iter)
         max_target_attr_len = max(target_len_iter)
 
         pad_id = 0
@@ -293,24 +312,29 @@ class WINE_TEST(Dataset):
 
             item_i = sample_i["item"]
             item_iter.append(item_i)
+
+            input_attr_i = copy.deepcopy(sample_i["input_attr"])
+            input_attr_len_i = len(input_attr_i)
+
+            input_attr_i.extend([pad_id]*(max_input_attr_len-input_attr_len_i))
+            input_attr_iter.append(input_attr_i)
             
             target_i = copy.deepcopy(sample_i["target"])
             target_len_i = len(target_i)
             target_i.extend([pad_id]*(max_target_attr_len-target_len_i))
             target_iter.append(target_i)
+            # target_iter.append(target_i[0])
 
         user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
 
-        target_len_iter_tensor = torch.from_numpy(np.array(target_len_iter)).long()
+        input_attr_iter_tensor = torch.from_numpy(np.array(input_attr_iter)).long()
 
-        # print("target_len_iter_tensor", target_len_iter_tensor)
+        input_attr_len_iter_tensor = torch.from_numpy(np.array(input_attr_len_iter)).long()
+
+        target_len_iter_tensor = torch.from_numpy(np.array(target_len_iter)).long()
 
         target_iter_tensor = torch.from_numpy(np.array(target_iter)).long()
 
-        # exit()
-
-        return user_iter_tensor, item_iter_tensor, target_len_iter_tensor, target_iter_tensor
-
-        # return  user_iter_tensor, item_iter_tensor, None, target_iter_tensor
+        return user_iter_tensor, item_iter_tensor, input_attr_iter_tensor, input_attr_len_iter_tensor, target_len_iter_tensor, target_iter_tensor
