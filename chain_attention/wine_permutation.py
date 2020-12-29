@@ -1,5 +1,5 @@
 """
-add multiple targets into the training
+permutate attributes
 """
 
 import os
@@ -30,16 +30,6 @@ class WINE(Dataset):
         self.m_vocab_size = vocab_obj.vocab_size
         self.m_vocab = vocab_obj
     
-        self.m_sample_num = len(df)
-        print("sample num", self.m_sample_num)
-
-        self.m_batch_num = int(self.m_sample_num/self.m_batch_size)
-        
-        if (self.m_sample_num/self.m_batch_size - self.m_batch_num) > 0:
-            self.m_batch_num += 1
-
-        print("batch num", self.m_batch_num)
-
         ###get length
 
         self.m_user_batch_list = []
@@ -54,42 +44,204 @@ class WINE(Dataset):
         userid_list = df.userid.tolist()
         itemid_list = df.itemid.tolist()
 
-        pos_attr_list = df.pos_attr.tolist()
+        # print("user_num", df.userid.nunique())
+        # print("item_num", df.itemid.nunique())
 
-        # max_attr_len = 20
+        pos_attr_list = df.pos_attr.tolist()
         max_attr_len = args.max_seq_length
 
-        for sample_index in range(self.m_sample_num):
+        df_size = len(df)
+
+        for sample_index in range(df_size):
             user_id = userid_list[sample_index]
             item_id = itemid_list[sample_index]
 
             pos_attr_list_i = pos_attr_list[sample_index]
             pos_attr_list_i = [int(i) for i in pos_attr_list_i]
 
+            # pos_attr_list_len_i = len(pos_attr_list_i)
+
+            # if pos_attr_list_len_i == 1:
+            #     continue
+
+            self.generate_sample_ind(user_id, item_id, pos_attr_list_i)
+            # # self.m_input_attr_list.append([])
+            # self.m_target_list.append(pos_attr_list_i[0])
+               
+            # for j in range(1, pos_attr_list_len_i):
+            #     input_attr_list_ij = pos_attr_list_i[:j]
+            #     target_ij = pos_attr_list_i[j]
+            
+            #     self.m_user_batch_list.append(user_id)
+            #     self.m_item_batch_list.append(item_id)
+
+            #     self.m_input_attr_list.append(input_attr_list_ij)
+            #     self.m_target_list.append(target_ij)
+
+        print("... load train data ...", len(self.m_item_batch_list), len(self.m_input_attr_list), len(self.m_target_list))
+
+        self.m_sample_num = len(self.m_item_batch_list)
+        print("sample num", self.m_sample_num)
+
+        self.m_batch_num = int(self.m_sample_num/self.m_batch_size)
+
+        if (self.m_sample_num/self.m_batch_size - self.m_batch_num) > 0:
+            self.m_batch_num += 1
+
+        print("batch num", self.m_batch_num)
+
+    def generate_sample_ind(self, user_id, item_id, pos_attr_list_i):
+        pos_attr_list_len_i = len(pos_attr_list_i)
+        # if pos_attr_list_len_i == 1:
+        #     return
+        
+        shuffle_freq = 1
+        shuffle_freq = 2
+        shuffle_freq = 3
+        shuffle_freq = 4
+
+        for shuffle_i in range(shuffle_freq):
             random.shuffle(pos_attr_list_i)
 
-            pos_attr_list_len_i = len(pos_attr_list_i)
-
-            if pos_attr_list_len_i == 1:
-                continue
+        for j in range(pos_attr_list_len_i):
+            input_attr_list_ij = list(pos_attr_list_i[:j])
+            target_ij = pos_attr_list_i[j]
 
             self.m_user_batch_list.append(user_id)
             self.m_item_batch_list.append(item_id)
 
-            self.m_input_attr_list.append([])
-            self.m_target_list.append(pos_attr_list_i[0])
-               
-            for j in range(1, pos_attr_list_len_i):
-                input_attr_list_ij = pos_attr_list_i[:j]
-                target_ij = pos_attr_list_i[j]
-            
+            self.m_input_attr_list.append(input_attr_list_ij)
+            self.m_target_list.append(target_ij)
+
+        # print(pos_attr_list_i)
+        # pos_attr_list_i = np.array(pos_attr_list_i)
+        # permutation_num = 100
+        # len_threshold = 9
+        # if pos_attr_list_len_i < len_threshold:
+        #     # print("len_threshold", len_threshold)
+        #     mask_list = [[0], [1]]
+        #     for i in range(1, pos_attr_list_len_i):
+        #         next_mask_list = []
+        #         for tmp in mask_list:
+        #             tmp_0 = copy.deepcopy(tmp)
+        #             tmp_0.append(0)
+        #             next_mask_list.append(tmp_0)
+
+        #             tmp_1 = copy.deepcopy(tmp)
+        #             tmp_1.append(1)
+        #             next_mask_list.append(tmp_1)
+
+        #         mask_list = next_mask_list
+
+        #     mask_list = mask_list[:-1]
+        #     # print("mask_list", mask_list)
+        #     random.shuffle(mask_list)
+        #     # print("shuffle mask_list", mask_list)
+        #     input_mask_list = mask_list[:permutation_num]
+        #     for mask_index in input_mask_list:
+        #         mask_index = np.array(mask_index)==1
+        #         # print("mask_index", mask_index)
+        #         # print("~mask_index", ~mask_index)
+        #         input_attr_list_ij = list(pos_attr_list_i[mask_index])
+        #         target_ij = list(pos_attr_list_i[~mask_index])
+        #         if len(target_ij) == 0:
+        #             continue
+        #         target_ij = random.sample(target_ij, 1)[0]
+        #         # input_attr_list_ij = mask_attr_list_ij[:-1]
+        #         # target_ij = mask_attr_list_ij[-1]
+
+        #         self.m_user_batch_list.append(user_id)
+        #         self.m_item_batch_list.append(item_id)
+
+        #         self.m_input_attr_list.append(input_attr_list_ij)
+        #         self.m_target_list.append(target_ij)
+
+        #         # print("input_attr_list_ij", input_attr_list_ij)
+        #         # print("target_ij", target_ij)
+        # else:
+        #     for j in range(permutation_num):
+        #         mask_index = np.array([random.randint(0, 1)==1 for k in range(pos_attr_list_len_i)])
+                
+        #         # mask_attr_list_ij = list(pos_attr_list_i[mask_index])
+        #         # if len(mask_attr_list_ij) == 0:
+        #         #     continue
+
+        #         input_attr_list_ij = list(pos_attr_list_i[mask_index])
+        #         target_ij = list(pos_attr_list_i[~mask_index])
+        #         if len(target_ij) == 0:
+        #             continue
+        #         target_ij = random.sample(target_ij, 1)[0]
+
+        #         # input_attr_list_ij = mask_attr_list_ij[:-1]
+        #         # target_ij = mask_attr_list_ij[-1]
+        #         # target_ij = list(pos_attr_list_i[~mask_index])
+
+        #         self.m_user_batch_list.append(user_id)
+        #         self.m_item_batch_list.append(item_id)
+
+        #         self.m_input_attr_list.append(input_attr_list_ij)
+        #         self.m_target_list.append(target_ij)
+
+    def generate_sample_group(self, user_id, item_id, pos_attr_list_i):
+        pos_attr_list_len_i = len(pos_attr_list_i)
+        if pos_attr_list_len_i == 1:
+            return
+        
+        # print(pos_attr_list_i)
+        pos_attr_list_i = np.array(pos_attr_list_i)
+        permutation_num = 100
+        len_threshold = 9
+        if pos_attr_list_len_i < len_threshold:
+            # print("len_threshold", len_threshold)
+            mask_list = [[0], [1]]
+            for i in range(1, pos_attr_list_len_i):
+                next_mask_list = []
+                for tmp in mask_list:
+                    tmp_0 = copy.deepcopy(tmp)
+                    tmp_0.append(0)
+                    next_mask_list.append(tmp_0)
+
+                    tmp_1 = copy.deepcopy(tmp)
+                    tmp_1.append(1)
+                    next_mask_list.append(tmp_1)
+
+                mask_list = next_mask_list
+
+            mask_list = mask_list[:-1]
+            # print("mask_list", mask_list)
+            random.shuffle(mask_list)
+            # print("shuffle mask_list", mask_list)
+            input_mask_list = mask_list[:permutation_num]
+            for mask_index in input_mask_list:
+                mask_index = np.array(mask_index)==1
+                # print("mask_index", mask_index)
+                # print("~mask_index", ~mask_index)
+                input_attr_list_ij = list(pos_attr_list_i[mask_index])
+                target_ij = list(pos_attr_list_i[~mask_index])
+
                 self.m_user_batch_list.append(user_id)
                 self.m_item_batch_list.append(item_id)
 
                 self.m_input_attr_list.append(input_attr_list_ij)
                 self.m_target_list.append(target_ij)
 
-        print("... load train data ...", len(self.m_item_batch_list), len(self.m_input_attr_list), len(self.m_target_list))
+                # print("input_attr_list_ij", input_attr_list_ij)
+                # print("target_ij", target_ij)
+        else:
+            for j in range(permutation_num):
+                mask_index = np.array([random.randint(0, 1)==1 for k in range(pos_attr_list_len_i)])
+                
+                input_attr_list_ij = list(pos_attr_list_i[mask_index])
+                target_ij = list(pos_attr_list_i[~mask_index])
+
+                if len(target_ij) == 0:
+                    continue
+
+                self.m_user_batch_list.append(user_id)
+                self.m_item_batch_list.append(item_id)
+
+                self.m_input_attr_list.append(input_attr_list_ij)
+                self.m_target_list.append(target_ij)
 
     def __len__(self):
         return len(self.m_item_batch_list)
@@ -157,10 +309,12 @@ class WINE(Dataset):
             input_attr_iter.append(input_attr_i)
 
             target_i = copy.deepcopy(sample_i["target"])
+            # print("target_i", target_i)
             # target_len_i = len(target_i)
             # target_i.extend([pad_id]*(max_target_len-target_len_i))
             target_iter.append(target_i)
 
+        # exit()
         user_iter_tensor = torch.from_numpy(np.array(user_iter)).long()
 
         item_iter_tensor = torch.from_numpy(np.array(item_iter)).long()
@@ -229,8 +383,8 @@ class WINE_TEST(Dataset):
             pos_attr_list_i = [int(i) for i in pos_attr_list_i]
 
             # random.shuffle(pos_attr_list_i)
-            if len(pos_attr_list_i) == 1:
-                continue
+            # if len(pos_attr_list_i) == 1:
+            #     continue
 
             self.m_input_attr_list.append([])
             self.m_target_list.append(pos_attr_list_i)

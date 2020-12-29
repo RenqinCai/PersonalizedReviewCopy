@@ -49,7 +49,6 @@ class _TRAINER(object):
         # self.m_rec_loss = XE_LOSS(self.m_vocab_size, self.m_device)
         self.m_rec_loss = BCE_LOSS(self.m_vocab_size, self.m_device)
 
-        # self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
 
         self.m_train_step = 0
         self.m_valid_step = 0
@@ -159,7 +158,7 @@ class _TRAINER(object):
         network.train()
         topk = 3
 
-        for user_batch, item_batch, attr_batch, attr_len_batch, target_batch in train_data:		
+        for user_batch, item_batch, attr_batch, attr_len_batch, target_batch, target_len_batch in train_data:		
             user_gpu = user_batch.to(self.m_device)             
 
             item_gpu = item_batch.to(self.m_device)
@@ -170,16 +169,17 @@ class _TRAINER(object):
 
             target_gpu = target_batch.to(self.m_device)
 
+            # target_len_gpu = target_len_batch.to(self.m_device)
+
             logits = network(user_gpu, item_gpu, attr_gpu, attr_len_gpu)
 
+            # NLL_loss = self.m_rec_loss(logits, target_gpu, True)
+            # loss = NLL_loss
+            # _, preds = torch.topk(logits, topk, -1)
+            # precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
+
             NLL_loss = self.m_rec_loss(logits, target_gpu)
-
             loss = NLL_loss
-
-            # precision = 1.0
-            # recall = 1.0
-            # F1 = 1.0
-
             precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, k=topk)
                        
             loss_list.append(loss.item()) 

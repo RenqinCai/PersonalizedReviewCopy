@@ -89,8 +89,8 @@ class _ATTR_NETWORK(nn.Module):
         user_hidden = attr_attn[:, 0]
         item_hidden = attr_attn[:, 1]
 
-        # user_hidden = user_embed
-        # item_hidden = item_embed
+        user_hidden = user_embed
+        item_hidden = item_embed
 
         ### voc_size*embed_size
         voc_user_embed = self.m_attr_user_embedding.weight
@@ -134,8 +134,8 @@ class _ATTR_NETWORK(nn.Module):
         user_hidden = attr_attn[:, 0]
         item_hidden = attr_attn[:, 1]
 
-        # user_hidden = user_embed
-        # item_hidden = item_embed
+        user_hidden = user_embed
+        item_hidden = item_embed
 
         ### voc_size*embed_size
         voc_user_embed = self.m_attr_user_embedding.weight

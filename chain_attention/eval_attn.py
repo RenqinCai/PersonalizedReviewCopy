@@ -44,9 +44,59 @@ class _EVAL(object):
 
     def f_eval(self, train_data, eval_data):
         print("eval new")
-        self.f_eval_new(train_data, eval_data)
+        # self.f_eval_train(train_data)
+        self.f_eval_test(eval_data)
 
-    def f_eval_new(self, train_data, eval_data):
+    def f_eval_train(self, train_data):
+        precision_list = []
+        recall_list = []
+        F1_list = []
+
+        print('--'*10)
+        s_time = datetime.datetime.now()
+
+        topk = 3
+        self.m_network.eval()
+        with torch.no_grad():
+            for user_batch, item_batch, attr_batch, attr_len_batch, target_batch, target_len_batch in train_data:
+                
+                user_gpu = user_batch.to(self.m_device)             
+
+                item_gpu = item_batch.to(self.m_device)
+
+                attr_gpu = attr_batch.to(self.m_device)
+
+                attr_len_gpu = attr_len_batch.to(self.m_device)
+
+                target_gpu = target_batch.to(self.m_device)
+
+                logits = self.m_network(user_gpu, item_gpu, attr_gpu, attr_len_gpu)
+
+                print("user_gpu", user_gpu)
+                print("item_gpu", item_gpu)
+                print("attr_gpu", attr_gpu)
+                print("preds", torch.topk(logits, topk, -1)[1])
+                print("target_batch", target_batch)
+
+                precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, k=topk)                
+                # print("recall%.4f"%recall, end=", ")
+                # loss_list.append(loss.item())
+                precision_list.append(precision)
+                recall_list.append(recall)
+                F1_list.append(F1)
+        
+                exit()
+        mean_precision = np.mean(precision_list)
+        print("precision:%.4f"%mean_precision)
+
+        mean_recall = np.mean(recall_list)
+        print("recall:%.4f"%mean_recall)
+
+        mean_F1 = np.mean(F1_list)
+        print("F1:%.4f"%mean_F1)
+
+
+    def f_eval_test(self, eval_data):
 
         precision_list = []
         recall_list = []
@@ -68,10 +118,10 @@ class _EVAL(object):
 
                 preds = self.m_network.f_eval(user_gpu, item_gpu, topk)
 
-                # print("user_gpu", user_gpu)
-                # print("item_gpu", item_gpu)
-                # print("preds", preds)
-                # print("target_batch", target_batch)
+                print("user_gpu", user_gpu)
+                print("item_gpu", item_gpu)
+                print("preds", preds)
+                print("target_batch", target_batch)
 
                 precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
                 
@@ -81,16 +131,16 @@ class _EVAL(object):
                 recall_list.append(recall)
                 F1_list.append(F1)
 
-                # exit()
+                exit()
 
         mean_precision = np.mean(precision_list)
-        print("precision: ", mean_precision)
+        print("precision:%.4f"%mean_precision)
 
         mean_recall = np.mean(recall_list)
-        print("recall: ", mean_recall)
+        print("recall:%.4f"%mean_recall)
 
         mean_F1 = np.mean(F1_list)
-        print("F1: ", mean_F1)
+        print("F1:%.4f"%mean_F1)
 
         e_time = datetime.datetime.now()
 

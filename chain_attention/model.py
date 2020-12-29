@@ -92,6 +92,9 @@ class _ATTR_NETWORK(nn.Module):
         user_hidden = attr_attn[:, 0]
         item_hidden = attr_attn[:, 1]
 
+        # user_hidden = user_embed
+        # item_hidden = item_embed
+
         ### voc_size*embed_size
         voc_user_embed = self.m_attr_user_embedding.weight
         voc_item_embed = self.m_attr_item_embedding.weight
@@ -109,6 +112,25 @@ class _ATTR_NETWORK(nn.Module):
         preds = self.f_decode_greedy(user_ids, item_ids, topk)
 
         # preds = self.f_decode_beam(user_ids, item_ids, topk)
+        
+        # preds = self.f_decode_topk(user_ids, item_ids, topk)
+
+        return preds
+
+    def f_decode_topk(self, user_ids, item_ids, topk):
+        user_embed = self.m_user_embedding(user_ids)
+        item_embed = self.m_item_embedding(item_ids)
+
+        voc_user_embed = self.m_attr_user_embedding.weight
+        voc_item_embed = self.m_attr_item_embedding.weight
+
+        user_logits = torch.matmul(user_embed, voc_user_embed.t())
+
+        item_logits = torch.matmul(item_embed, voc_item_embed.t())
+
+        logits = user_logits+item_logits
+
+        _, preds = torch.topk(logits, topk, dim=-1)
 
         return preds
 
@@ -232,6 +254,9 @@ class _ATTR_NETWORK(nn.Module):
             item_logits = torch.matmul(item_hidden, voc_item_embed.t())
 
             logits = user_logits+item_logits
+
+            if i > 0:
+                logits.scatter_(1, attr_ids, float("-inf"))
 
             output = greedy(logits)
             generations.append(output)

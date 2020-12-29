@@ -15,13 +15,13 @@ from logger import _LOGGER
 # import matplotlib.pyplot as plt
 import time
 
-# from train import _TRAINER
-from train_sequential import _TRAINER
+from train import _TRAINER
+# from train_sequential import _TRAINER
 # from model_avg import _ATTR_NETWORK
 # from model_pop import _ATTR_NETWORK
-from model_sequential import _ATTR_NETWORK
-# from model import _ATTR_NETWORK
-from eval_attn import _EVAL
+# from model_sequential import _ATTR_NETWORK
+from model import _ATTR_NETWORK
+from ensemble_eval_attn import _EVAL
 from infer_attn import _INFER
 # from eval_pop import _EVAL
 # from eval_user_item_pop import _EVAL
@@ -81,16 +81,14 @@ def main(args):
     # pretrain_word_embed = load_pretrain_word2vec(vocab_obj, args)
     # pretrain_word_embed = pretrain_word_embed.to(device)
     
-    network = _ATTR_NETWORK(vocab_obj, args, device)
+    # total_param_num = 0
+    # for name, param in network.named_parameters():
+    #     if param.requires_grad:
+    #         param_num = param.numel()
+    #         total_param_num += param_num
+    #         print(name, "\t", param_num)
 
-    total_param_num = 0
-    for name, param in network.named_parameters():
-        if param.requires_grad:
-            param_num = param.numel()
-            total_param_num += param_num
-            print(name, "\t", param_num)
-
-    print("total parameters num", total_param_num)
+    # print("total parameters num", total_param_num)
 
     if args.train:
         logger_obj = _LOGGER()
@@ -107,9 +105,14 @@ def main(args):
         
         eval_obj = _EVAL(vocab_obj, args, device)
 
-        network = network.to(device)
-        
-        eval_obj.f_init_eval(network, args.model_file, reload_model=True)
+        model_file_list = ["model_best_12_28_22_11.pt", "model_best_12_28_22_37.pt", "model_best_12_28_22_43.pt", "model_best_12_28_22_50.pt"]
+        for model_file in model_file_list:
+            network = _ATTR_NETWORK(vocab_obj, args, device)
+
+            network = network.to(device)
+            model_abs_file = os.path.join(args.model_file, model_file)
+
+            eval_obj.f_init_eval(network, model_abs_file, reload_model=True)
 
         # eval_obj.f_eval_new_user(train_data, valid_data)
         eval_obj.f_eval(train_data, valid_data)
@@ -147,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--item_boa_file', type=str, default='item_boa.json')
     parser.add_argument('--user_boa_file', type=str, default='user_boa.json')
     parser.add_argument('--model_file', type=str, default="model_best.pt")
-    parser.add_argument('--model_name', type=str, default="chain_attn")
+    parser.add_argument('--model_name', type=str, default="two_tower_bpr_attr")
     parser.add_argument('--model_path', type=str, default="../checkpoint/")
 
     ### model

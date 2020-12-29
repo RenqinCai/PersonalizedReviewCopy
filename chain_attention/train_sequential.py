@@ -234,7 +234,8 @@ class _TRAINER(object):
         network.eval()
         topk = 3
         with torch.no_grad():
-            for user_batch, item_batch, attr_batch, attr_len_batch, target_len_batch, target_batch in eval_data:
+            for user_batch, item_batch, attr_batch, attr_len_batch, target_batch in eval_data:
+            # for user_batch, item_batch, attr_batch, attr_len_batch, target_len_batch, target_batch in eval_data:
 
                 user_gpu = user_batch.to(self.m_device)
 
@@ -246,10 +247,10 @@ class _TRAINER(object):
 
                 target_gpu = target_batch.to(self.m_device)
 
-                preds = network.f_eval(user_gpu, item_gpu, attr_gpu, attr_len_gpu, topk)
+                preds = network(user_gpu, item_gpu, attr_gpu, attr_len_gpu)
 
-                # precision, recall, F1= get_precision_recall_F1(preds.cpu(), target_batch, k=topk)
-                precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
+                precision, recall, F1= get_precision_recall_F1(preds.cpu(), target_batch, k=topk)
+                # precision, recall, F1= get_precision_recall_F1_test(preds.cpu(), target_batch, target_len_batch, k=topk)
             
                 precision_list.append(precision)
                 recall_list.append(recall)

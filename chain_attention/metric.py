@@ -150,6 +150,8 @@ def get_precision_recall_F1(preds, targets, k=1):
     for i, _ in enumerate(indices):
         pred_i = list(indices[i])
         target_i = list([targets[i]])
+        # print("pred_i", pred_i)
+        # print("target_i", target_i)
         true_pos = set(target_i) & set(pred_i)
         true_pos_num = len(true_pos)
 
@@ -181,7 +183,7 @@ def get_precision_recall_F1_test(preds, targets, lens, k=1):
     recall_list = []
     F1_list = []
 
-    indices = indices.numpy()
+    # indices = indices.numpy()
     targets = targets.numpy()
     lens = lens.numpy()
 

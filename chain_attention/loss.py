@@ -15,7 +15,7 @@ class BCE_LOSS(nn.Module):
         self.m_voc_size = voc_size
         self.m_device = device
     
-    def forward(self, preds, targets, train_flag=True):
+    def forward(self, preds, targets, group_flag=False):
         # print("=="*10)
 
         # print(targets)
@@ -25,7 +25,7 @@ class BCE_LOSS(nn.Module):
 
         # print(targets.size())
 
-        if not train_flag:
+        if group_flag:
             targets = torch.sum(targets, dim=1)
             targets[:, 0] = 0
 
@@ -46,17 +46,12 @@ class XE_LOSS(nn.Module):
         self.m_voc_size = voc_size
         self.m_device = device
     
-    def forward(self, preds, targets):
-        # print("==="*10)
-        # print(targets.size())
+    def forward(self, preds, targets, group_flag=False):
         targets = F.one_hot(targets, self.m_voc_size)
 
-        # print(targets.size())
-        targets = torch.sum(targets, dim=1)
-
-        # print(targets.size())
-
-        targets[:, 0] = 0
+        if group_flag:
+            targets = torch.sum(targets, dim=1)
+            targets[:, 0] = 0
 
         preds = F.log_softmax(preds, 1)
         xe_loss = torch.sum(preds*targets, dim=-1)
