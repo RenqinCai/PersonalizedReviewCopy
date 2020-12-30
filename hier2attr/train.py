@@ -8,12 +8,13 @@ import datetime
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS
+from loss import _REC_LOSS, _REC_BOW_LOSS, _KL_LOSS_CUSTOMIZE, _KL_LOSS_STANDARD, _RRE_LOSS, _ARE_LOSS, _REC_SOFTMAX_BOW_LOSS, _REC_BPR_LOSS, XE_LOSS
 from metric import get_precision_recall, get_precision_recall_train, get_precision_recall_F1
 # from model_debug import _ATTR_NETWORK
 # from model import _ATTR_NETWORK
 # from model_mix import _ATTR_NETWORK
 from model import _ATTR_NETWORK
+# from model import _ATTR_NETWORK
 from infer_new import _INFER
 import random
 
@@ -25,6 +26,7 @@ class _TRAINER(object):
         self.m_device = device
 
         self.m_pad_idx = vocab.pad_idx
+        self.m_vocab_size = vocab.vocab_size
 
         self.m_save_mode = True
 
@@ -43,7 +45,8 @@ class _TRAINER(object):
         # self.m_rec_loss = _REC_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_SOFTMAX_BOW_LOSS(self.m_device)
         # self.m_rec_loss = _REC_LOSS(self.m_pad_idx, self.m_device)
-        self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
+        # self.m_rec_loss = _REC_BPR_LOSS(self.m_device)
+        self.m_rec_loss = XE_LOSS(self.m_vocab_size, self.m_device)
 
         self.m_train_step = 0
         self.m_valid_step = 0
@@ -71,10 +74,16 @@ class _TRAINER(object):
         network.m_output_attr_embedding_user.weight.data.copy_(pretrain_network.m_output_attr_embedding_user.weight.data)
         network.m_output_attr_embedding_item.weight.data.copy_(pretrain_network.m_output_attr_embedding_item.weight.data)
 
-        network.m_user_embedding.weight.requires_grad = False
-        network.m_item_embedding.weight.requires_grad = False
-        network.m_output_attr_embedding_user.weight.requires_grad = False
-        network.m_output_attr_embedding_item.weight.requires_grad = False
+        network.m_output_attr_embedding_user_x.weight.data.copy_(pretrain_network.m_output_attr_embedding_user.weight.data)
+        network.m_output_attr_embedding_item_x.weight.data.copy_(pretrain_network.m_output_attr_embedding_item.weight.data)
+
+        # network.m_user_embedding.weight.requires_grad = False
+        # network.m_item_embedding.weight.requires_grad = False
+        # network.m_output_attr_embedding_user.weight.requires_grad = False
+        # network.m_output_attr_embedding_item.weight.requires_grad = False
+
+        # network.m_output_attr_embedding_user_x.weight.requires_grad = False
+        # network.m_output_attr_embedding_item_x.weight.requires_grad = False
 
     def f_train(self, pretrain_network, train_data, eval_data, network, optimizer, logger_obj):
         last_train_loss = 0
@@ -186,7 +195,9 @@ class _TRAINER(object):
 
             logits, mask, targets = network(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_len_gpu, ref_attr_user_gpu, ref_attr_len_user_gpu, ref_user_len_gpu, user_gpu, item_gpu, pos_target_gpu, pos_length_gpu, neg_target_gpu, neg_length_gpu)
 
-            NLL_loss = self.m_rec_loss(logits, targets, mask)
+            # NLL_loss = self.m_rec_loss(logits, targets, mask)
+            NLL_loss = self.m_rec_loss(logits, pos_target_gpu)
+
             loss = NLL_loss
 
             precision = 1.0

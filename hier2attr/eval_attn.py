@@ -63,21 +63,19 @@ class _EVAL(object):
 
             topk = 3
 
-            for attr_batch, attr_ind_batch, attr_tf_batch, attr_feat_batch, attr_length_batch, attr_length_user_batch, attr_length_item_batch, user_batch, item_batch, target_batch, target_mask_batch in eval_data:			
-                
-                attr_gpu = attr_batch.to(self.m_device)
-                attr_ind_gpu = attr_ind_batch.to(self.m_device)
-                attr_tf_gpu = attr_tf_batch.to(self.m_device)
-                attr_feat_gpu = attr_feat_batch.to(self.m_device)
-                attr_length_gpu = attr_length_batch.to(self.m_device)
+            for ref_attr_item_batch, ref_attr_len_item_batch, ref_item_len_batch, ref_attr_user_batch, ref_attr_len_user_batch, ref_user_len_batch, user_batch, item_batch, target_batch, target_mask_batch in eval_data:			                
+                ref_attr_item_gpu = ref_attr_item_batch.to(self.m_device)
+                ref_attr_len_item_gpu = ref_attr_len_item_batch.to(self.m_device)
+                ref_item_len_gpu = ref_item_len_batch.to(self.m_device)
 
-                attr_length_user_gpu = attr_length_user_batch.to(self.m_device)
+                ref_attr_user_gpu = ref_attr_user_batch.to(self.m_device)
+                ref_attr_len_user_gpu = ref_attr_len_user_batch.to(self.m_device)
+                ref_user_len_gpu = ref_user_len_batch.to(self.m_device)
+               
                 user_gpu = user_batch.to(self.m_device)
-
-                attr_length_item_gpu = attr_length_item_batch.to(self.m_device)
                 item_gpu = item_batch.to(self.m_device)
 
-                logits = self.m_network.f_eval_forward(attr_gpu, attr_ind_gpu, attr_tf_gpu, attr_feat_gpu, attr_length_gpu, attr_length_user_gpu, attr_length_item_gpu, user_gpu, item_gpu)
+                logits = self.m_network.f_eval_forward(ref_attr_item_gpu, ref_attr_len_item_gpu, ref_item_len_gpu, ref_attr_user_gpu, ref_attr_len_user_gpu, ref_user_len_gpu, user_gpu, item_gpu)
                 
                 precision, recall, F1= get_precision_recall_F1(logits.cpu(), target_batch, target_mask_batch, k=topk)
 

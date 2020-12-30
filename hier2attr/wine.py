@@ -97,9 +97,10 @@ class _WINE(Dataset):
                 ref_attrlist_item_list.append(attrlist_j)
                 ref_itemid_list.append(itemid_j)
 
-            self.m_ref_attr_item_batch_list.append(ref_attrlist_item_list)
-            self.m_ref_item_batch_list.append(ref_itemid_list)
-            
+            if len(ref_itemid_list) == 0:
+                print("error ref_itemid_list", ref_itemid_list)
+                continue
+
             ref_attrlist_user_list = []
             ref_userid_list = []
 
@@ -112,7 +113,14 @@ class _WINE(Dataset):
 
                 ref_attrlist_user_list.append(attrlist_j)
                 ref_userid_list.append(userid_j)
+
+            if len(ref_userid_list) == 0:
+                print("error ref_userid_list", ref_userid_list)
+                continue
             
+            self.m_ref_attr_item_batch_list.append(ref_attrlist_item_list)
+            self.m_ref_item_batch_list.append(ref_itemid_list)
+
             self.m_ref_attr_user_batch_list.append(ref_attrlist_user_list)
             self.m_ref_user_batch_list.append(ref_userid_list)
 
@@ -648,9 +656,10 @@ class _WINE_TEST(Dataset):
 
             # ref_item_num_i = len(ref_attr_item_i)
             # assert len(ref_item_i) == len(ref_attr_item_i)
-
-            for j in ref_attr_item_i:
+            # print("=="*10)
+            for j_index, j in enumerate(ref_attr_item_i):
                 len_j = len(j)
+                # print(j_index, j)
                 j.extend([freq_pad_id]*(max_ref_attr_len_item-len_j))
                 ref_attr_item_iter.append(j)
 

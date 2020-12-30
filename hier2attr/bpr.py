@@ -1,5 +1,5 @@
 """
-model_avg+attribute_pop
+bpr+attribute_pop
 """
 
 import torch

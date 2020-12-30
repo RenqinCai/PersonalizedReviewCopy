@@ -7,6 +7,24 @@ import numpy as np
 from collections import Counter 
 import bottleneck as bn
 
+class XE_LOSS(nn.Module):
+    def __init__(self, voc_size, device):
+        super(XE_LOSS, self).__init__()
+        self.m_voc_size = voc_size
+        self.m_device = device
+    
+    def forward(self, preds, targets):
+        targets = torch.sum(F.one_hot(targets, self.m_voc_size), dim=1)
+
+        targets[:, 0] = 0
+
+        preds = F.log_softmax(preds, 1)
+        xe_loss = torch.sum(preds*targets, dim=-1)
+
+        xe_loss = -torch.mean(xe_loss)
+
+        return xe_loss
+
 class _REC_LOSS(nn.Module):
     def __init__(self, ignore_index, device):
         super(_REC_LOSS, self).__init__()
